@@ -1,5 +1,10 @@
 {
   "python.analysis.typeCheckingMode": "strict",
   "python.analysis.extraPaths": ["./backend"],
-  "python.autoComplete.extraPaths": ["./backend"]
+  "python.autoComplete.extraPaths": [
+    "./backend"
+  ],
+  "git.autorefresh": true,
+  "git.autofetch": true,
+  "git.autoStash": true
 }
