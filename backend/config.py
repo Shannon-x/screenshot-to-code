@@ -16,7 +16,8 @@ REPLICATE_API_KEY = os.environ.get("REPLICATE_API_KEY", None)
 
 # Debugging-related
 
-SHOULD_MOCK_AI_RESPONSE = bool(os.environ.get("MOCK", False))
+# 是否使用模拟AI响应 (mock)，现阶段强制关闭
+SHOULD_MOCK_AI_RESPONSE = False
 IS_DEBUG_ENABLED = bool(os.environ.get("IS_DEBUG_ENABLED", False))
 DEBUG_DIR = os.environ.get("DEBUG_DIR", "")
 

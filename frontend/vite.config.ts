@@ -11,10 +11,11 @@ export default ({ mode }) => {
     base: "",
     server: {
       proxy: {
-        // 转发生成代码的 WebSocket 请求到后端
+        // 转发生成代码的 WebSocket 请求到后端服务, 无论本地还是 Docker Compose 均可生效
         '/generate-code': {
-          target: 'ws://127.0.0.1:7001',
+          target: 'ws://backend:7001',
           ws: true,
+          changeOrigin: true,
         },
       },
     },

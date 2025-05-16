@@ -25,7 +25,21 @@ export function generateCode(
   onCancel: () => void,
   onComplete: () => void
 ) {
-  const wsUrl = `/generate-code`;
+  // 构造 WebSocket URL
+  const isHttpsPage = window.location.protocol === 'https:';
+  let wsUrl: string;
+  if (isHttpsPage) {
+    // HTTPS 环境下，使用同域 wss
+    wsUrl = `wss://${window.location.host}/generate-code`;
+  } else {
+    // 本地开发或 HTTP 环境下，优先使用 VITE_WS_BACKEND_URL，否则将 HTTP 地址转换为 WS
+    const wsEnv = import.meta.env.VITE_WS_BACKEND_URL;
+    const httpEnv = import.meta.env.VITE_HTTP_BACKEND_URL;
+    const root = wsEnv || (httpEnv ? httpEnv.replace(/^http/, 'ws') : '');
+    wsUrl = root
+      ? `${root.replace(/\/$/, '')}/generate-code`
+      : `/generate-code`;
+  }
   console.log("Connecting to backend @ ", wsUrl);
 
   const ws = new WebSocket(wsUrl);
