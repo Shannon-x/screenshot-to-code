@@ -9,6 +9,15 @@ export default ({ mode }) => {
   process.env = { ...process.env, ...loadEnv(mode, process.cwd()) };
   return defineConfig({
     base: "",
+    server: {
+      proxy: {
+        // 转发生成代码的 WebSocket 请求到后端
+        '/generate-code': {
+          target: 'ws://127.0.0.1:7001',
+          ws: true,
+        },
+      },
+    },
     plugins: [
       react(),
       checker({ typescript: true }),

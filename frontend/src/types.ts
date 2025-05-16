@@ -13,7 +13,7 @@ export interface Settings {
   isImageGenerationEnabled: boolean;
   editorTheme: EditorTheme;
   generatedCodeConfig: Stack;
-  codeGenerationModel: CodeGenerationModel;
+  codeGenerationModel: CodeGenerationModel; // Changed back to CodeGenerationModel
   // Only relevant for hosted version
   isTermOfServiceAccepted: boolean;
   anthropicApiKey: string | null; // Added property for anthropic API key

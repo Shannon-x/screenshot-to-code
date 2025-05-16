@@ -2,12 +2,9 @@
 export const IS_RUNNING_ON_CLOUD =
   import.meta.env.VITE_IS_DEPLOYED === "true" || false;
 
-// Derive WebSocket URL from environment or fallback from HTTP backend URL
-export const WS_BACKEND_URL =
-  import.meta.env.VITE_WS_BACKEND_URL ||
-  (import.meta.env.VITE_HTTP_BACKEND_URL
-    ? import.meta.env.VITE_HTTP_BACKEND_URL.replace(/^http/, "ws")
-    : "ws://127.0.0.1:7001");
+// WebSocket 连接，始终使用当前页面 Host，HTTPS 页面使用 wss，HTTP 页面使用 ws
+const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+export const WS_BACKEND_URL = `${wsProtocol}://${window.location.host}`;
 
 export const HTTP_BACKEND_URL =
   import.meta.env.VITE_HTTP_BACKEND_URL || "http://127.0.0.1:7001";

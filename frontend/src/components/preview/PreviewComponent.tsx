@@ -10,7 +10,7 @@ interface Props {
 }
 
 function PreviewComponent({ code, device, doUpdate }: Props) {
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null!);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
   // Don't update code more often than every 200ms.

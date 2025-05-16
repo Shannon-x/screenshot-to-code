@@ -5,7 +5,6 @@ import OutputSettingsSection from "./OutputSettingsSection";
 import { Stack } from "../../lib/stacks";
 import { CodeGenerationModel, CODE_GENERATION_MODEL_DESCRIPTIONS } from "../../lib/models";
 import { Select, SelectTrigger, SelectContent, SelectGroup, SelectItem } from "../ui/select";
-import { Badge } from "../ui/badge";
 
 interface GenerationSettingsProps {
   settings: Settings;
@@ -35,7 +34,7 @@ export const GenerationSettings: React.FC<GenerationSettingsProps> = ({
         setStack={setStack}
         shouldDisableUpdates={shouldDisableUpdates}
       />
-      {/* Model selection using UI components */}
+      {/* 模型选择下拉框 */}
       <div className="flex flex-col gap-y-2">
         <div className="grid grid-cols-3 items-center gap-4">
           <span className="text-gray-500 text-sm">Select Model</span>
@@ -56,14 +55,7 @@ export const GenerationSettings: React.FC<GenerationSettingsProps> = ({
               <SelectGroup>
                 {Object.values(CodeGenerationModel).map((model) => (
                   <SelectItem key={model} value={model}>
-                    <div className="flex items-center">
-                      {CODE_GENERATION_MODEL_DESCRIPTIONS[model]?.name || model}
-                      {CODE_GENERATION_MODEL_DESCRIPTIONS[model]?.inBeta && (
-                        <Badge className="ml-2" variant="secondary">
-                          Beta
-                        </Badge>
-                      )}
-                    </div>
+                    {CODE_GENERATION_MODEL_DESCRIPTIONS[model]?.name || model}
                   </SelectItem>
                 ))}
               </SelectGroup>

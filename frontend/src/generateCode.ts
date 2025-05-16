@@ -1,5 +1,4 @@
 import toast from "react-hot-toast";
-import { WS_BACKEND_URL } from "./config";
 import {
   APP_ERROR_WEB_SOCKET_CODE,
   USER_CLOSE_WEB_SOCKET_CODE,
@@ -26,7 +25,7 @@ export function generateCode(
   onCancel: () => void,
   onComplete: () => void
 ) {
-  const wsUrl = `${WS_BACKEND_URL}/generate-code`;
+  const wsUrl = `/generate-code`;
   console.log("Connecting to backend @ ", wsUrl);
 
   const ws = new WebSocket(wsUrl);
