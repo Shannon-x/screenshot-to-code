@@ -95,6 +95,41 @@ The app will be up and running at http://localhost:5173. Note that you can't dev
 - **Seeing UTF-8 errors when running the backend?** - On windows, open the .env file with notepad++, then go to Encoding and select UTF-8.
 - **How can I provide feedback?** For feedback, feature requests and bug reports, open an issue or ping me on [Twitter](https://twitter.com/_abi_).
 
+## 🔧 Environment Variables Configuration
+
+Before running the app, you need to configure two environment files:
+
+1. **Backend** (`.env` in `/backend`):
+   ```bash
+   # Copy example and edit
+   cp .env.example .env
+
+   # .env (backend)
+   OPENAI_API_KEY=sk-your-openai-key        # 必填：OpenAI API Key
+   ANTHROPIC_API_KEY=an-your-anthropic-key   # 可选：Anthropic API Key
+   OPENAI_BASE_URL=https://api.openai.com/v1  # 可选：自定义 OpenAI Base URL
+   REPLICATE_API_KEY=rp-your-replicate-key   # 可选：Replicate API Key
+   MOCK=false                                # 可选：mock 模式
+   ```
+   Replace `sk-your-openai-key` and other values with your actual credentials.
+
+2. **Frontend** (`.env.local` in `/frontend`):
+   ```bash
+   # Copy example and edit
+   cp .env.example .env.local
+
+   # .env.local (frontend)
+   # 如果前端部署在 a.com，后端位于 1.2.3.4:7001
+   VITE_HTTP_BACKEND_URL=http://1.2.3.4:7001
+   VITE_WS_BACKEND_URL=ws://1.2.3.4:7001
+   VITE_IS_DEPLOYED=false   # 若前端通过 HTTPS (如 https://a.com) 提供，则设置为 true
+   ```
+   - `VITE_HTTP_BACKEND_URL`：后端 HTTP API 地址（示例：`http://<IP>:<PORT>`）
+   - `VITE_WS_BACKEND_URL`：后端 WebSocket 地址（示例：`ws://<IP>:<PORT>`）
+   - `VITE_IS_DEPLOYED`：如果你的前端 `a.com` 使用 HTTPS，设置为 `true`，客户端会自动改为 `wss://`。
+
+After configuring these files, restart both the backend (`poetry run uvicorn ...`) and the frontend (`yarn dev`).
+
 ## 📚 Examples
 
 **NYTimes**

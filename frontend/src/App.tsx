@@ -18,7 +18,6 @@ import { useAppStore } from "./store/app-store";
 import { useProjectStore } from "./store/project-store";
 import Sidebar from "./components/sidebar/Sidebar";
 import PreviewPane from "./components/preview/PreviewPane";
-import DeprecationMessage from "./components/messages/DeprecationMessage";
 import { GenerationSettings } from "./components/settings/GenerationSettings";
 import StartPane from "./components/start-pane/StartPane";
 import { Commit } from "./components/commits/types";
@@ -75,18 +74,12 @@ function App() {
 
   const wsRef = useRef<WebSocket>(null);
 
-  // Code generation model from local storage or the default value
-  const model =
-    settings.codeGenerationModel || CodeGenerationModel.GPT_4_VISION;
-
-  const showBetterModelMessage =
-    model !== CodeGenerationModel.GPT_4O_2024_05_13 &&
-    model !== CodeGenerationModel.CLAUDE_3_5_SONNET_2024_06_20 &&
-    appState === AppState.INITIAL;
-
+  // 当前选中的模型
+  const selectedModel = settings.codeGenerationModel;
+  // 控制能否启用 SelectAndEdit 功能，仅对 GPT-4o 与 Claude 3.5 生效
   const showSelectAndEditFeature =
-    (model === CodeGenerationModel.GPT_4O_2024_05_13 ||
-      model === CodeGenerationModel.CLAUDE_3_5_SONNET_2024_06_20) &&
+    (selectedModel === CodeGenerationModel.GPT_4O_2024_05_13 ||
+      selectedModel === CodeGenerationModel.CLAUDE_3_5_SONNET_2024_06_20) &&
     (settings.generatedCodeConfig === Stack.HTML_TAILWIND ||
       settings.generatedCodeConfig === Stack.HTML_CSS);
 
@@ -355,8 +348,7 @@ function App() {
           {/* Generation settings like stack and model */}
           <GenerationSettings settings={settings} setSettings={setSettings} />
 
-          {/* Show auto updated message when older models are choosen */}
-          {showBetterModelMessage && <DeprecationMessage />}
+          {/* 已移除已废弃模型提示 */}
 
           {/* Show tip link until coding is complete */}
           {/* {appState !== AppState.CODE_READY && <TipLink />} */}

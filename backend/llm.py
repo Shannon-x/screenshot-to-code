@@ -17,21 +17,29 @@ from utils import pprint_prompt
 
 # Actual model versions that are passed to the LLMs and stored in our logs
 class Llm(Enum):
+    # OpenAI models
     GPT_4_VISION = "gpt-4-vision-preview"
     GPT_4_TURBO_2024_04_09 = "gpt-4-turbo-2024-04-09"
     GPT_4O_2024_05_13 = "gpt-4o-2024-05-13"
     GPT_4O_2024_08_06 = "gpt-4o-2024-08-06"
     GPT_4O_2024_11_20 = "gpt-4o-2024-11-20"
+    GPT_4_1_2025_04_14 = "gpt-4.1-2025-04-14"
+    GPT_4_5_PREVIEW_2025_02_27 = "gpt-4.5-preview-2025-02-27"
+    O4_MINI = "o4-mini"
+    O1_PREVIEW_2024_09_12 = "o1-preview-2024-09-12"
+    O1_2024_12_17 = "o1-2024-12-17"
+    O3_2025_04_16 = "o3-2025-04-16"
+    # Anthropic models
     CLAUDE_3_SONNET = "claude-3-sonnet-20240229"
     CLAUDE_3_OPUS = "claude-3-opus-20240229"
     CLAUDE_3_HAIKU = "claude-3-haiku-20240307"
     CLAUDE_3_5_SONNET_2024_06_20 = "claude-3-5-sonnet-20240620"
     CLAUDE_3_5_SONNET_2024_10_22 = "claude-3-5-sonnet-20241022"
     CLAUDE_3_7_SONNET_2025_02_19 = "claude-3-7-sonnet-20250219"
+    # Gemini (Google) models
     GEMINI_2_0_FLASH_EXP = "gemini-2.0-flash-exp"
     GEMINI_2_0_FLASH = "gemini-2.0-flash"
     GEMINI_2_0_PRO_EXP = "gemini-2.0-pro-exp-02-05"
-    O1_2024_12_17 = "o1-2024-12-17"
 
 
 class Completion(TypedDict):

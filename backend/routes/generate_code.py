@@ -188,8 +188,7 @@ async def stream_code(websocket: WebSocket):
 
     # TODO: Are the values always strings?
     params: dict[str, str] = await websocket.receive_json()
-    print("Received params")
-
+    selected_model_str = params.get("codeGenerationModel")
     extracted_params = await extract_params(params, throw_error)
     stack = extracted_params.stack
     input_mode = extracted_params.input_mode
@@ -205,10 +204,6 @@ async def stream_code(websocket: WebSocket):
         await send_message("status", "Generating code...", i)
 
     ### Prompt creation
-
-    # Image cache for updates so that we don't have to regenerate images
-    image_cache: Dict[str, str] = {}
-
     try:
         prompt_messages, image_cache = await create_prompt(params, stack, input_mode)
     except:
@@ -220,10 +215,40 @@ async def stream_code(websocket: WebSocket):
     # pprint_prompt(prompt_messages)  # type: ignore
 
     ### Code generation
-
     async def process_chunk(content: str, variantIndex: int):
         await send_message("chunk", content, variantIndex)
 
+    # 如果前端指定了单一模型，则按所选模型生成
+    if selected_model_str:
+        # 尝试根据 value 查找对应的 Llm 成员
+        selected_model = next((m for m in Llm if m.value == selected_model_str), None)
+        if not selected_model:
+            await throw_error(f"Unsupported model: {selected_model_str}")
+            return
+        # 依据模型类型选择接口
+        if selected_model.name.startswith("CLAUDE"):
+            completion = await stream_claude_response(
+                prompt_messages,
+                api_key=extracted_params.anthropic_api_key or extracted_params.openai_api_key,
+                callback=lambda x: process_chunk(x, 0),
+                model=selected_model,
+            )
+        else:
+            completion = await stream_openai_response(
+                prompt_messages,
+                api_key=extracted_params.openai_api_key or "",
+                base_url=extracted_params.openai_base_url,
+                callback=lambda x: process_chunk(x, 0),
+                model=selected_model,
+            )
+        # 发送完整结果并结束
+        await send_message("setCode", completion["code"], 0)
+        await send_message("status", "Code generation complete.", 0)
+        # 关闭 WebSocket 以触发客户端 onComplete
+        await websocket.close(1000)
+        return
+
+    # 原有多模型并发逻辑
     if SHOULD_MOCK_AI_RESPONSE:
         completion_results = [
             await mock_completion(process_chunk, input_mode=input_mode)
@@ -250,119 +275,145 @@ async def stream_code(websocket: WebSocket):
                 ]
                 completions = [result["code"] for result in completion_results]
             else:
+                # Extract selected model from params
+                selected_model = params.get("codeGenerationModel")
 
-                # Depending on the presence and absence of various keys,
-                # we decide which models to run
-                variant_models = []
-
-                # For creation, use Claude Sonnet 3.7
-                # For updates, we use Claude Sonnet 3.5 until we have tested Claude Sonnet 3.7
-                if generation_type == "create":
-                    claude_model = Llm.CLAUDE_3_7_SONNET_2025_02_19
-                else:
-                    claude_model = Llm.CLAUDE_3_5_SONNET_2024_06_20
-
-                if openai_api_key and anthropic_api_key:
-                    variant_models = [
-                        claude_model,
-                        Llm.GPT_4O_2024_11_20,
-                    ]
-                elif openai_api_key:
-                    variant_models = [
-                        Llm.GPT_4O_2024_11_20,
-                        Llm.GPT_4O_2024_11_20,
-                    ]
-                elif anthropic_api_key:
-                    variant_models = [
-                        claude_model,
-                        Llm.CLAUDE_3_5_SONNET_2024_06_20,
-                    ]
-                else:
-                    await throw_error(
-                        "No OpenAI or Anthropic API key found. Please add the environment variable OPENAI_API_KEY or ANTHROPIC_API_KEY to backend/.env or in the settings dialog. If you add it to .env, make sure to restart the backend server."
-                    )
-                    raise Exception("No OpenAI or Anthropic key")
-
-                tasks: List[Coroutine[Any, Any, Completion]] = []
-                for index, model in enumerate(variant_models):
-                    if model == Llm.GPT_4O_2024_11_20 or model == Llm.O1_2024_12_17:
-                        if openai_api_key is None:
-                            await throw_error("OpenAI API key is missing.")
-                            raise Exception("OpenAI API key is missing.")
-
-                        tasks.append(
+                # 如果前端传入了具体模型，则使用所选模型
+                if selected_model:
+                    # 对于 Claude 系列，使用 Anthropic 流式接口；否则使用 OpenAI 流式接口
+                    if selected_model.startswith("claude"):
+                        tasks = [
+                            stream_claude_response(
+                                prompt_messages,
+                                api_key=anthropic_api_key or openai_api_key,
+                                callback=lambda x, i=0: process_chunk(x, i),
+                                model=selected_model,
+                            )
+                        ]
+                    else:
+                        tasks = [
                             stream_openai_response(
                                 prompt_messages,
                                 api_key=openai_api_key,
                                 base_url=openai_base_url,
-                                callback=lambda x, i=index: process_chunk(x, i),
-                                model=model,
+                                callback=lambda x, i=0: process_chunk(x, i),
+                                model=selected_model,
                             )
-                        )
-                    elif GEMINI_API_KEY and (
-                        model == Llm.GEMINI_2_0_PRO_EXP
-                        or model == Llm.GEMINI_2_0_FLASH_EXP
-                        or model == Llm.GEMINI_2_0_FLASH
-                    ):
-                        tasks.append(
-                            stream_gemini_response(
-                                prompt_messages,
-                                api_key=GEMINI_API_KEY,
-                                callback=lambda x, i=index: process_chunk(x, i),
-                                model=model,
-                            )
-                        )
-                    elif (
-                        model == Llm.CLAUDE_3_5_SONNET_2024_06_20
-                        or model == Llm.CLAUDE_3_5_SONNET_2024_10_22
-                        or model == Llm.CLAUDE_3_7_SONNET_2025_02_19
-                    ):
-                        if anthropic_api_key is None:
-                            await throw_error("Anthropic API key is missing.")
-                            raise Exception("Anthropic API key is missing.")
+                        ]
+                    # 并行执行所选任务
+                    completions = await asyncio.gather(*tasks, return_exceptions=False)
+                else:
+                    # 原有多模型并发逻辑
+                    variant_models = []
 
-                        # For creation, use Claude Sonnet 3.7
-                        # For updates, we use Claude Sonnet 3.5 until we have tested Claude Sonnet 3.7
-                        if params["generationType"] == "create":
-                            claude_model = Llm.CLAUDE_3_7_SONNET_2025_02_19
-                        else:
-                            claude_model = Llm.CLAUDE_3_5_SONNET_2024_06_20
-
-                        tasks.append(
-                            stream_claude_response(
-                                prompt_messages,
-                                api_key=anthropic_api_key,
-                                callback=lambda x, i=index: process_chunk(x, i),
-                                model=claude_model,
-                            )
-                        )
-
-                # Run the models in parallel and capture exceptions if any
-                completions = await asyncio.gather(*tasks, return_exceptions=True)
-
-                # If all generations failed, throw an error
-                all_generations_failed = all(
-                    isinstance(completion, BaseException) for completion in completions
-                )
-                if all_generations_failed:
-                    await throw_error("Error generating code. Please contact support.")
-
-                    # Print the all the underlying exceptions for debugging
-                    for completion in completions:
-                        if isinstance(completion, BaseException):
-                            traceback.print_exception(completion)
-                    raise Exception("All generations failed")
-
-                # If some completions failed, replace them with empty strings
-                for index, completion in enumerate(completions):
-                    if isinstance(completion, BaseException):
-                        completions[index] = Completion(duration=0, code="")
-                        print("Generation failed for variant", index)
-                        print(completion)
+                    # For creation, use Claude Sonnet 3.7
+                    # For updates, we use Claude Sonnet 3.5 until we have tested Claude Sonnet 3.7
+                    if generation_type == "create":
+                        claude_model = Llm.CLAUDE_3_7_SONNET_2025_02_19
                     else:
-                        print(
-                            f"{variant_models[index].value} completion took {completion['duration']:.2f} seconds"
+                        claude_model = Llm.CLAUDE_3_5_SONNET_2024_06_20
+
+                    if openai_api_key and anthropic_api_key:
+                        variant_models = [
+                            claude_model,
+                            Llm.GPT_4O_2024_11_20,
+                        ]
+                    elif openai_api_key:
+                        variant_models = [
+                            Llm.GPT_4O_2024_11_20,
+                            Llm.GPT_4O_2024_11_20,
+                        ]
+                    elif anthropic_api_key:
+                        variant_models = [
+                            claude_model,
+                            Llm.CLAUDE_3_5_SONNET_2024_06_20,
+                        ]
+                    else:
+                        await throw_error(
+                            "No OpenAI or Anthropic API key found. Please add the environment variable OPENAI_API_KEY or ANTHROPIC_API_KEY to backend/.env or in the settings dialog. If you add it to .env, make sure to restart the backend server."
                         )
+                        raise Exception("No OpenAI or Anthropic key")
+
+                    tasks: List[Coroutine[Any, Any, Completion]] = []
+                    for index, model in enumerate(variant_models):
+                        if model == Llm.GPT_4O_2024_11_20 or model == Llm.O1_2024_12_17:
+                            if openai_api_key is None:
+                                await throw_error("OpenAI API key is missing.")
+                                raise Exception("OpenAI API key is missing.")
+
+                            tasks.append(
+                                stream_openai_response(
+                                    prompt_messages,
+                                    api_key=openai_api_key,
+                                    base_url=openai_base_url,
+                                    callback=lambda x, i=index: process_chunk(x, i),
+                                    model=model,
+                            )
+                            )
+                        elif GEMINI_API_KEY and (
+                            model == Llm.GEMINI_2_0_PRO_EXP
+                            or model == Llm.GEMINI_2_0_FLASH_EXP
+                            or model == Llm.GEMINI_2_0_FLASH
+                        ):
+                            tasks.append(
+                                stream_gemini_response(
+                                    prompt_messages,
+                                    api_key=GEMINI_API_KEY,
+                                    callback=lambda x, i=index: process_chunk(x, i),
+                                    model=model,
+                            )
+                            )
+                        elif (
+                            model == Llm.CLAUDE_3_5_SONNET_2024_06_20
+                            or model == Llm.CLAUDE_3_5_SONNET_2024_10_22
+                            or model == Llm.CLAUDE_3_7_SONNET_2025_02_19
+                        ):
+                            if anthropic_api_key is None:
+                                await throw_error("Anthropic API key is missing.")
+                                raise Exception("Anthropic API key is missing.")
+
+                            # For creation, use Claude Sonnet 3.7
+                            # For updates, we use Claude Sonnet 3.5 until we have tested Claude Sonnet 3.7
+                            if params["generationType"] == "create":
+                                claude_model = Llm.CLAUDE_3_7_SONNET_2025_02_19
+                            else:
+                                claude_model = Llm.CLAUDE_3_5_SONNET_2024_06_20
+
+                            tasks.append(
+                                stream_claude_response(
+                                    prompt_messages,
+                                    api_key=anthropic_api_key,
+                                    callback=lambda x, i=index: process_chunk(x, i),
+                                    model=claude_model,
+                            )
+                            )
+
+                    # Run the models in parallel and capture exceptions if any
+                    completions = await asyncio.gather(*tasks, return_exceptions=True)
+
+                    # If all generations failed, throw an error
+                    all_generations_failed = all(
+                        isinstance(completion, BaseException) for completion in completions
+                    )
+                    if all_generations_failed:
+                        await throw_error("Error generating code. Please contact support.")
+
+                        # Print the all the underlying exceptions for debugging
+                        for completion in completions:
+                            if isinstance(completion, BaseException):
+                                traceback.print_exception(completion)
+                        raise Exception("All generations failed")
+
+                    # If some completions failed, replace them with empty strings
+                    for index, completion in enumerate(completions):
+                        if isinstance(completion, BaseException):
+                            completions[index] = Completion(duration=0, code="")
+                            print("Generation failed for variant", index)
+                            print(completion)
+                        else:
+                            print(
+                                f"{variant_models[index].value} completion took {completion['duration']:.2f} seconds"
+                            )
 
                 completions = [
                     result["code"]
