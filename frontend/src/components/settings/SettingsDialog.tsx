@@ -133,6 +133,135 @@ function SettingsDialog({ settings, setSettings }: Props) {
           </div>
 
           <Accordion type="single" collapsible className="w-full">
+            <AccordionItem value="custom-model">
+              <AccordionTrigger>自定义AI模型配置</AccordionTrigger>
+              <AccordionContent className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Label htmlFor="use-custom-model">
+                    <div>启用自定义模型</div>
+                    <div className="font-light mt-2 text-xs">
+                      使用您自己的AI模型API而不是内置模型
+                    </div>
+                  </Label>
+                  <Switch
+                    id="use-custom-model"
+                    checked={settings.useCustomModel || false}
+                    onCheckedChange={(checked) =>
+                      setSettings((s) => ({
+                        ...s,
+                        useCustomModel: checked,
+                        customModel: checked ? s.customModel || {
+                          id: "",
+                          name: "",
+                          url: "",
+                          apiKey: ""
+                        } : null,
+                      }))
+                    }
+                  />
+                </div>
+
+                {settings.useCustomModel && (
+                  <div className="space-y-4 p-4 border rounded-lg bg-gray-50 dark:bg-gray-800">
+                    <div>
+                      <Label htmlFor="custom-model-name">
+                        <div>模型名称</div>
+                        <div className="font-light mt-1 text-xs">
+                          自定义模型的显示名称
+                        </div>
+                      </Label>
+                      <Input
+                        id="custom-model-name"
+                        placeholder="例如：Custom GPT-4"
+                        value={settings.customModel?.name || ""}
+                        onChange={(e) =>
+                          setSettings((s) => ({
+                            ...s,
+                            customModel: {
+                              ...s.customModel!,
+                              name: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="custom-model-id">
+                        <div>模型ID</div>
+                        <div className="font-light mt-1 text-xs">
+                          要调用的模型的标识符
+                        </div>
+                      </Label>
+                      <Input
+                        id="custom-model-id"
+                        placeholder="例如：gpt-4o, claude-3-5-sonnet"
+                        value={settings.customModel?.id || ""}
+                        onChange={(e) =>
+                          setSettings((s) => ({
+                            ...s,
+                            customModel: {
+                              ...s.customModel!,
+                              id: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="custom-model-url">
+                        <div>API端点URL</div>
+                        <div className="font-light mt-1 text-xs">
+                          模型服务的完整API端点地址
+                        </div>
+                      </Label>
+                      <Input
+                        id="custom-model-url"
+                        placeholder="例如：https://api.openai.com/v1/chat/completions"
+                        value={settings.customModel?.url || ""}
+                        onChange={(e) =>
+                          setSettings((s) => ({
+                            ...s,
+                            customModel: {
+                              ...s.customModel!,
+                              url: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="custom-model-api-key">
+                        <div>API密钥</div>
+                        <div className="font-light mt-1 text-xs">
+                          访问模型服务所需的API密钥
+                        </div>
+                      </Label>
+                      <Input
+                        id="custom-model-api-key"
+                        type="password"
+                        placeholder="输入API密钥"
+                        value={settings.customModel?.apiKey || ""}
+                        onChange={(e) =>
+                          setSettings((s) => ({
+                            ...s,
+                            customModel: {
+                              ...s.customModel!,
+                              apiKey: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+
+          <Accordion type="single" collapsible className="w-full">
             <AccordionItem value="item-1">
               <AccordionTrigger>Screenshot by URL Config</AccordionTrigger>
               <AccordionContent>

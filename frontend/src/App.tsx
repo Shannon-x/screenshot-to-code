@@ -74,6 +74,9 @@ function App() {
       codeGenerationModel: CodeGenerationModel.CLAUDE_3_5_SONNET_2024_06_20,
       // Only relevant for hosted version
       isTermOfServiceAccepted: false,
+      // Custom model configuration
+      useCustomModel: false,
+      customModel: null,
     },
     "setting"
   );
@@ -108,7 +111,16 @@ function App() {
         generatedCodeConfig: Stack.HTML_TAILWIND,
       }));
     }
-  }, [settings.generatedCodeConfig, setSettings]);
+    
+    // Initialize custom model settings if not present
+    if (settings.useCustomModel === undefined) {
+      setSettings((prev) => ({
+        ...prev,
+        useCustomModel: false,
+        customModel: null,
+      }));
+    }
+  }, [settings.generatedCodeConfig, settings.useCustomModel, setSettings]);
 
   // Functions
   const reset = () => {

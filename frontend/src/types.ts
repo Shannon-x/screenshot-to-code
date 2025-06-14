@@ -6,6 +6,13 @@ export enum EditorTheme {
   COBALT = "cobalt",
 }
 
+export interface CustomModel {
+  id: string;
+  name: string;
+  url: string;
+  apiKey: string;
+}
+
 export interface Settings {
   openAiApiKey: string | null;
   openAiBaseURL: string | null;
@@ -17,6 +24,9 @@ export interface Settings {
   // Only relevant for hosted version
   isTermOfServiceAccepted: boolean;
   anthropicApiKey: string | null; // Added property for anthropic API key
+  // Custom model configuration
+  useCustomModel: boolean;
+  customModel: CustomModel | null;
 }
 
 export enum AppState {

@@ -37,6 +37,8 @@ from typing import (
     get_args,
 )
 from openai.types.chat import ChatCompletionMessageParam
+import aiohttp
+import json
 
 # WebSocket message types
 MessageType = Literal[
@@ -206,6 +208,11 @@ class ExtractedParams:
     anthropic_api_key: str | None
     openai_base_url: str | None
     generation_type: Literal["create", "update"]
+    # Custom model configuration
+    use_custom_model: bool
+    custom_model_id: str | None
+    custom_model_url: str | None
+    custom_model_api_key: str | None
 
 
 class ParameterExtractionStage:
@@ -261,6 +268,36 @@ class ParameterExtractionStage:
             raise ValueError(f"Invalid generation type: {generation_type}")
         generation_type = cast(Literal["create", "update"], generation_type)
 
+        # Extract custom model configuration
+        use_custom_model = params.get("useCustomModel", "false").lower() == "true"
+        custom_model_id = None
+        custom_model_url = None
+        custom_model_api_key = None
+        
+        if use_custom_model:
+            custom_model_data = params.get("customModel")
+            if custom_model_data:
+                # Parse custom model JSON if it's a string
+                if isinstance(custom_model_data, str):
+                    try:
+                        custom_model_json = json.loads(custom_model_data)
+                        custom_model_id = custom_model_json.get("id")
+                        custom_model_url = custom_model_json.get("url")
+                        custom_model_api_key = custom_model_json.get("apiKey")
+                    except json.JSONDecodeError:
+                        await self.throw_error("Invalid custom model configuration format")
+                        raise ValueError("Invalid custom model configuration format")
+                else:
+                    # Direct object access
+                    custom_model_id = custom_model_data.get("id")
+                    custom_model_url = custom_model_data.get("url")
+                    custom_model_api_key = custom_model_data.get("apiKey")
+                
+                # Validate required custom model fields
+                if not custom_model_id or not custom_model_url:
+                    await self.throw_error("自定义模型需要提供模型ID和API端点URL")
+                    raise ValueError("Custom model requires model ID and API URL")
+
         return ExtractedParams(
             stack=validated_stack,
             input_mode=validated_input_mode,
@@ -269,6 +306,10 @@ class ParameterExtractionStage:
             anthropic_api_key=anthropic_api_key,
             openai_base_url=openai_base_url,
             generation_type=generation_type,
+            use_custom_model=use_custom_model,
+            custom_model_id=custom_model_id,
+            custom_model_url=custom_model_url,
+            custom_model_api_key=custom_model_api_key,
         )
 
     def _get_from_settings_dialog_or_env(
@@ -300,9 +341,20 @@ class ModelSelectionStage:
         openai_api_key: str | None,
         anthropic_api_key: str | None,
         gemini_api_key: str | None = None,
+        use_custom_model: bool = False,
+        custom_model_id: str | None = None,
     ) -> List[Llm]:
         """Select appropriate models based on available API keys"""
         try:
+            # If using custom model, create a custom Llm enum value
+            if use_custom_model and custom_model_id:
+                # For custom models, we'll use a special handling approach
+                # We'll return a list with a single custom model identifier
+                print(f"Using custom model: {custom_model_id}")
+                # Create a temporary Llm entry for the custom model
+                # We'll handle this specially in the completion generation
+                return [Llm.GPT_4O_2024_11_20]  # Placeholder, actual custom model handling in completion stage
+            
             variant_models = self._get_variant_models(
                 generation_type,
                 input_mode,
@@ -319,12 +371,17 @@ class ModelSelectionStage:
 
             return variant_models
         except Exception:
-            await self.throw_error(
-                "No OpenAI or Anthropic API key found. Please add the environment variable "
-                "OPENAI_API_KEY or ANTHROPIC_API_KEY to backend/.env or in the settings dialog. "
-                "If you add it to .env, make sure to restart the backend server."
-            )
-            raise Exception("No OpenAI or Anthropic key")
+            if use_custom_model:
+                await self.throw_error(
+                    "自定义模型配置错误。请检查模型ID、API端点URL和API密钥是否正确。"
+                )
+            else:
+                await self.throw_error(
+                    "No OpenAI or Anthropic API key found. Please add the environment variable "
+                    "OPENAI_API_KEY or ANTHROPIC_API_KEY to backend/.env or in the settings dialog. "
+                    "If you add it to .env, make sure to restart the backend server."
+                )
+            raise Exception("Model selection failed")
 
     def _get_variant_models(
         self,
@@ -515,12 +572,20 @@ class ParallelGenerationStage:
         openai_base_url: str | None,
         anthropic_api_key: str | None,
         should_generate_images: bool,
+        use_custom_model: bool = False,
+        custom_model_id: str | None = None,
+        custom_model_url: str | None = None,
+        custom_model_api_key: str | None = None,
     ):
         self.send_message = send_message
         self.openai_api_key = openai_api_key
         self.openai_base_url = openai_base_url
         self.anthropic_api_key = anthropic_api_key
         self.should_generate_images = should_generate_images
+        self.use_custom_model = use_custom_model
+        self.custom_model_id = custom_model_id
+        self.custom_model_url = custom_model_url
+        self.custom_model_api_key = custom_model_api_key
 
     async def process_variants(
         self,
@@ -562,6 +627,23 @@ class ParallelGenerationStage:
     ) -> List[Coroutine[Any, Any, Completion]]:
         """Create generation tasks for each variant model"""
         tasks: List[Coroutine[Any, Any, Completion]] = []
+
+        # Handle custom model first
+        if self.use_custom_model:
+            assert self.custom_model_id is not None
+            assert self.custom_model_url is not None
+            
+            for index in range(len(variant_models)):
+                tasks.append(
+                    self._stream_custom_model(
+                        prompt_messages,
+                        model_id=self.custom_model_id,
+                        api_url=self.custom_model_url,
+                        api_key=self.custom_model_api_key,
+                        index=index,
+                    )
+                )
+            return tasks
 
         for index, model in enumerate(variant_models):
             if (
@@ -878,6 +960,8 @@ class CodeGenerationMiddleware(Middleware):
                         openai_api_key=context.extracted_params.openai_api_key,
                         anthropic_api_key=context.extracted_params.anthropic_api_key,
                         gemini_api_key=GEMINI_API_KEY,
+                        use_custom_model=context.extracted_params.use_custom_model,
+                        custom_model_id=context.extracted_params.custom_model_id,
                     )
 
                     # Generate code for all variants
@@ -887,6 +971,11 @@ class CodeGenerationMiddleware(Middleware):
                         openai_base_url=context.extracted_params.openai_base_url,
                         anthropic_api_key=context.extracted_params.anthropic_api_key,
                         should_generate_images=context.extracted_params.should_generate_images,
+                        # Custom model parameters
+                        use_custom_model=context.extracted_params.use_custom_model,
+                        custom_model_id=context.extracted_params.custom_model_id,
+                        custom_model_url=context.extracted_params.custom_model_url,
+                        custom_model_api_key=context.extracted_params.custom_model_api_key,
                     )
 
                     context.variant_completions = (
@@ -950,3 +1039,148 @@ async def stream_code(websocket: WebSocket):
 
     # Execute the pipeline
     await pipeline.execute(websocket)
+
+    async def _stream_custom_model(
+        self,
+        prompt_messages: List[ChatCompletionMessageParam],
+        model_id: str,
+        api_url: str,
+        api_key: str | None,
+        index: int,
+    ) -> Completion:
+        """Stream response from custom model API"""
+        import time
+        start_time = time.time()
+        
+        try:
+            # Convert messages to format compatible with most APIs
+            formatted_messages = []
+            for msg in prompt_messages:
+                if msg["role"] == "user" and isinstance(msg["content"], list):
+                    # Handle multimodal content (text + images)
+                    text_parts = []
+                    image_parts = []
+                    
+                    for content_part in msg["content"]:
+                        if content_part["type"] == "text":
+                            text_parts.append(content_part["text"])
+                        elif content_part["type"] == "image_url":
+                            # Extract base64 image data
+                            image_url = content_part["image_url"]["url"]
+                            if image_url.startswith("data:image"):
+                                image_parts.append(image_url)
+                    
+                    # Combine text parts
+                    combined_text = "\n".join(text_parts)
+                    if image_parts:
+                        combined_text += f"\n\n[图片数量: {len(image_parts)}]"
+                    
+                    formatted_messages.append({
+                        "role": "user",
+                        "content": combined_text
+                    })
+                else:
+                    formatted_messages.append({
+                        "role": msg["role"],
+                        "content": msg["content"] if isinstance(msg["content"], str) else str(msg["content"])
+                    })
+
+            # Prepare request data
+            headers = {
+                "Content-Type": "application/json"
+            }
+            
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+
+            # Support different API formats
+            if "openai" in api_url.lower() or "chat/completions" in api_url:
+                # OpenAI-compatible format
+                request_data = {
+                    "model": model_id,
+                    "messages": formatted_messages,
+                    "stream": True,
+                    "max_tokens": 4000,
+                    "temperature": 0.1
+                }
+            elif "anthropic" in api_url.lower():
+                # Anthropic format
+                system_message = ""
+                user_messages = []
+                
+                for msg in formatted_messages:
+                    if msg["role"] == "system":
+                        system_message = msg["content"]
+                    else:
+                        user_messages.append(msg)
+                
+                request_data = {
+                    "model": model_id,
+                    "messages": user_messages,
+                    "system": system_message,
+                    "stream": True,
+                    "max_tokens": 4000
+                }
+            else:
+                # Generic format - try OpenAI style first
+                request_data = {
+                    "model": model_id,
+                    "messages": formatted_messages,
+                    "stream": True,
+                    "max_tokens": 4000,
+                    "temperature": 0.1
+                }
+
+            # Make the API request
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    api_url,
+                    headers=headers,
+                    json=request_data,
+                    timeout=aiohttp.ClientTimeout(total=120)
+                ) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        raise Exception(f"Custom model API error ({response.status}): {error_text}")
+                    
+                    full_response = ""
+                    
+                    # Handle streaming response
+                    async for line in response.content:
+                        line_str = line.decode('utf-8').strip()
+                        if line_str.startswith('data: '):
+                            data_str = line_str[6:]  # Remove 'data: ' prefix
+                            if data_str == '[DONE]':
+                                break
+                            
+                            try:
+                                data = json.loads(data_str)
+                                
+                                # Handle different response formats
+                                content = ""
+                                if "choices" in data and len(data["choices"]) > 0:
+                                    delta = data["choices"][0].get("delta", {})
+                                    content = delta.get("content", "")
+                                elif "delta" in data:
+                                    content = data["delta"].get("text", "")
+                                elif "content" in data:
+                                    content = data["content"]
+                                
+                                if content:
+                                    full_response += content
+                                    await self._process_chunk(content, index)
+                                    
+                            except json.JSONDecodeError:
+                                # Skip invalid JSON lines
+                                continue
+            
+            duration = time.time() - start_time
+            return {"duration": duration, "code": full_response}
+            
+        except Exception as e:
+            print(f"Custom model error: {e}")
+            duration = time.time() - start_time
+            # Return error message as completion
+            error_msg = f"自定义模型调用失败: {str(e)}"
+            await self._process_chunk(error_msg, index)
+            return {"duration": duration, "code": error_msg}
