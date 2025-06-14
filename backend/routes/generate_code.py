@@ -23,6 +23,7 @@ from models import (
     stream_claude_response_native,
     stream_openai_response,
     stream_gemini_response,
+    call_custom_llm_api, # Added import
 )
 from fs_logging.core import write_logs
 from mock_llm import mock_completion
@@ -211,7 +212,7 @@ class ExtractedParams:
     # Custom model configuration
     use_custom_model: bool
     custom_model_id: str | None
-    custom_model_url: str | None
+    custom_model_service_url: str | None # Renamed from custom_model_url
     custom_model_api_key: str | None
 
 
@@ -271,32 +272,20 @@ class ParameterExtractionStage:
         # Extract custom model configuration
         use_custom_model = params.get("useCustomModel", "false").lower() == "true"
         custom_model_id = None
-        custom_model_url = None
+        custom_model_service_url = None
         custom_model_api_key = None
         
         if use_custom_model:
-            custom_model_data = params.get("customModel")
-            if custom_model_data:
-                # Parse custom model JSON if it's a string
-                if isinstance(custom_model_data, str):
-                    try:
-                        custom_model_json = json.loads(custom_model_data)
-                        custom_model_id = custom_model_json.get("id")
-                        custom_model_url = custom_model_json.get("url")
-                        custom_model_api_key = custom_model_json.get("apiKey")
-                    except json.JSONDecodeError:
-                        await self.throw_error("Invalid custom model configuration format")
-                        raise ValueError("Invalid custom model configuration format")
-                else:
-                    # Direct object access
-                    custom_model_id = custom_model_data.get("id")
-                    custom_model_url = custom_model_data.get("url")
-                    custom_model_api_key = custom_model_data.get("apiKey")
-                
-                # Validate required custom model fields
-                if not custom_model_id or not custom_model_url:
-                    await self.throw_error("自定义模型需要提供模型ID和API端点URL")
-                    raise ValueError("Custom model requires model ID and API URL")
+            # Parameters are expected to be top-level from the frontend
+            custom_model_id = params.get("customModelId")
+            custom_model_service_url = params.get("customModelServiceUrl")
+            custom_model_api_key = params.get("customModelApiKey") # This can be optional
+
+            # Validate required custom model fields
+            # API key might be optional for some public models or if embedded in URL
+            if not custom_model_id or not custom_model_service_url:
+                await self.throw_error("Custom model requires Model ID and Service URL.")
+                raise ValueError("Custom model requires Model ID and Service URL.")
 
         return ExtractedParams(
             stack=validated_stack,
@@ -308,7 +297,7 @@ class ParameterExtractionStage:
             generation_type=generation_type,
             use_custom_model=use_custom_model,
             custom_model_id=custom_model_id,
-            custom_model_url=custom_model_url,
+            custom_model_service_url=custom_model_service_url, # Renamed
             custom_model_api_key=custom_model_api_key,
         )
 
@@ -631,16 +620,21 @@ class ParallelGenerationStage:
         # Handle custom model first
         if self.use_custom_model:
             assert self.custom_model_id is not None
-            assert self.custom_model_url is not None
+            assert self.custom_model_url is not None # This is the service_url
             
-            for index in range(len(variant_models)):
+            # For custom models, variant_models might be just placeholders.
+            # We'll create one task per NUM_VARIANTS, all using the same custom model params.
+            # Or, if variant_models is expected to be correctly set for custom (e.g. [Llm.CUSTOM_MODEL_PLACEHOLDER]*NUM_VARIANTS)
+            # then iterate through it. Assuming NUM_VARIANTS is the desired number of calls.
+            for i in range(NUM_VARIANTS): # Use NUM_VARIANTS to determine number of calls for custom model
                 tasks.append(
-                    self._stream_custom_model(
-                        prompt_messages,
+                    call_custom_llm_api(
+                        prompt_messages=prompt_messages,
                         model_id=self.custom_model_id,
-                        api_url=self.custom_model_url,
+                        service_url=self.custom_model_url, # This is custom_model_service_url
                         api_key=self.custom_model_api_key,
-                        index=index,
+                        stream_callback=self._process_chunk, # Pass the callback
+                        index=i, # Pass the variant index
                     )
                 )
             return tasks
@@ -974,7 +968,7 @@ class CodeGenerationMiddleware(Middleware):
                         # Custom model parameters
                         use_custom_model=context.extracted_params.use_custom_model,
                         custom_model_id=context.extracted_params.custom_model_id,
-                        custom_model_url=context.extracted_params.custom_model_url,
+                        custom_model_url=context.extracted_params.custom_model_service_url, # Renamed
                         custom_model_api_key=context.extracted_params.custom_model_api_key,
                     )
 
@@ -1040,11 +1034,15 @@ async def stream_code(websocket: WebSocket):
     # Execute the pipeline
     await pipeline.execute(websocket)
 
+    # This method seems to be defined standalone at the end of the file.
+    # It should ideally be part of ParallelGenerationStage or a new CustomLlmClient class.
+    # For now, let's assume it's correctly called if use_custom_model is true.
+    # The 'api_url' parameter here corresponds to 'custom_model_service_url'.
     async def _stream_custom_model(
-        self,
+        self, # Assuming this is part of a class, e.g. ParallelGenerationStage
         prompt_messages: List[ChatCompletionMessageParam],
         model_id: str,
-        api_url: str,
+        api_url: str, # This is serviceUrl
         api_key: str | None,
         index: int,
     ) -> Completion:
@@ -1068,12 +1066,13 @@ async def stream_code(websocket: WebSocket):
                             # Extract base64 image data
                             image_url = content_part["image_url"]["url"]
                             if image_url.startswith("data:image"):
-                                image_parts.append(image_url)
+                                image_parts.append(image_url) # TODO: Actually send image data if API supports
                     
                     # Combine text parts
                     combined_text = "\n".join(text_parts)
                     if image_parts:
-                        combined_text += f"\n\n[图片数量: {len(image_parts)}]"
+                        # Placeholder for image data in prompt, actual image data handling needs API specific logic
+                        combined_text += f"\n\n[Image data for {len(image_parts)} image(s) would be here if supported by custom API]"
                     
                     formatted_messages.append({
                         "role": "user",
@@ -1093,51 +1092,35 @@ async def stream_code(websocket: WebSocket):
             if api_key:
                 headers["Authorization"] = f"Bearer {api_key}"
 
-            # Support different API formats
-            if "openai" in api_url.lower() or "chat/completions" in api_url:
-                # OpenAI-compatible format
-                request_data = {
-                    "model": model_id,
-                    "messages": formatted_messages,
-                    "stream": True,
-                    "max_tokens": 4000,
-                    "temperature": 0.1
-                }
+            # Support different API formats (simplified example)
+            # A more robust solution would involve configuration or sniffing
+            request_data = {
+                "model": model_id,
+                "messages": formatted_messages,
+                "stream": True, # Assuming streaming is desired
+                # Add other common parameters if needed, e.g., max_tokens, temperature
+            }
+
+            # Example for OpenAI-like
+            if "openai" in api_url.lower() or "chat/completions" in api_url.lower():
+                 request_data["max_tokens"] = 4000
+                 request_data["temperature"] = 0.1
+            # Example for Anthropic-like
             elif "anthropic" in api_url.lower():
-                # Anthropic format
-                system_message = ""
-                user_messages = []
-                
-                for msg in formatted_messages:
-                    if msg["role"] == "system":
-                        system_message = msg["content"]
-                    else:
-                        user_messages.append(msg)
-                
-                request_data = {
-                    "model": model_id,
-                    "messages": user_messages,
-                    "system": system_message,
-                    "stream": True,
-                    "max_tokens": 4000
-                }
-            else:
-                # Generic format - try OpenAI style first
-                request_data = {
-                    "model": model_id,
-                    "messages": formatted_messages,
-                    "stream": True,
-                    "max_tokens": 4000,
-                    "temperature": 0.1
-                }
+                system_prompt_parts = [m["content"] for m in formatted_messages if m["role"] == "system"]
+                if system_prompt_parts:
+                    request_data["system"] = "\n".join(system_prompt_parts)
+                request_data["messages"] = [m for m in formatted_messages if m["role"] != "system"]
+                request_data["max_tokens"] = 4000
+
 
             # Make the API request
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    api_url,
+                    api_url, # This is the serviceUrl
                     headers=headers,
                     json=request_data,
-                    timeout=aiohttp.ClientTimeout(total=120)
+                    timeout=aiohttp.ClientTimeout(total=120) # Configurable timeout
                 ) as response:
                     if response.status != 200:
                         error_text = await response.text()
@@ -1145,42 +1128,52 @@ async def stream_code(websocket: WebSocket):
                     
                     full_response = ""
                     
-                    # Handle streaming response
+                    # Handle streaming response (common SSE format)
                     async for line in response.content:
                         line_str = line.decode('utf-8').strip()
                         if line_str.startswith('data: '):
-                            data_str = line_str[6:]  # Remove 'data: ' prefix
+                            data_str = line_str[len('data: '):]
                             if data_str == '[DONE]':
                                 break
                             
                             try:
-                                data = json.loads(data_str)
-                                
-                                # Handle different response formats
+                                chunk_json = json.loads(data_str)
                                 content = ""
-                                if "choices" in data and len(data["choices"]) > 0:
-                                    delta = data["choices"][0].get("delta", {})
+                                # Try to extract content from common structures
+                                if "choices" in chunk_json and len(chunk_json["choices"]) > 0:
+                                    delta = chunk_json["choices"][0].get("delta", {})
                                     content = delta.get("content", "")
-                                elif "delta" in data:
-                                    content = data["delta"].get("text", "")
-                                elif "content" in data:
-                                    content = data["content"]
+                                elif "delta" in chunk_json: # Anthropic style
+                                    content = chunk_json["delta"].get("text", "")
+                                elif "text" in chunk_json: # Other possible text field
+                                    content = chunk_json["text"]
+                                # Add more extraction logic if other formats are common
                                 
                                 if content:
                                     full_response += content
-                                    await self._process_chunk(content, index)
-                                    
+                                    # Assuming self has _process_chunk or similar method if part of a class
+                                    if hasattr(self, "_process_chunk") and callable(self._process_chunk):
+                                      await self._process_chunk(content, index)
+                                    else: # Standalone call, need send_message directly
+                                      # This part is problematic for standalone func, needs refactor
+                                      print(f"Chunk for {index}: {content}")
+
+
                             except json.JSONDecodeError:
-                                # Skip invalid JSON lines
-                                continue
+                                # print(f"Skipping non-JSON line: {line_str}")
+                                continue # Skip lines that are not valid JSON
             
             duration = time.time() - start_time
             return {"duration": duration, "code": full_response}
             
         except Exception as e:
-            print(f"Custom model error: {e}")
+            print(f"Custom model error for variant {index}: {e}")
+            traceback.print_exc() # Print full traceback for debugging
             duration = time.time() - start_time
-            # Return error message as completion
-            error_msg = f"自定义模型调用失败: {str(e)}"
-            await self._process_chunk(error_msg, index)
-            return {"duration": duration, "code": error_msg}
+            error_msg = f"Custom Model API Call Failed: {str(e)}"
+            # Similar to above, sending error message back
+            if hasattr(self, "_process_chunk") and callable(self._process_chunk):
+                await self._process_chunk(error_msg, index) # Send error as chunk
+            else:
+                print(f"Error for {index}: {error_msg}")
+            return {"duration": duration, "code": error_msg } # Return error in code

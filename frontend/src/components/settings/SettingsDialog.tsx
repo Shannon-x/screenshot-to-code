@@ -134,13 +134,13 @@ function SettingsDialog({ settings, setSettings }: Props) {
 
           <Accordion type="single" collapsible className="w-full">
             <AccordionItem value="custom-model">
-              <AccordionTrigger>自定义AI模型配置</AccordionTrigger>
+              <AccordionTrigger>Custom AI Model</AccordionTrigger>
               <AccordionContent className="space-y-4">
                 <div className="flex items-center space-x-2">
                   <Label htmlFor="use-custom-model">
-                    <div>启用自定义模型</div>
+                    <div>Use Custom AI Model</div>
                     <div className="font-light mt-2 text-xs">
-                      使用您自己的AI模型API而不是内置模型
+                      Use your own AI model API instead of the built-in models.
                     </div>
                   </Label>
                   <Switch
@@ -151,35 +151,35 @@ function SettingsDialog({ settings, setSettings }: Props) {
                         ...s,
                         useCustomModel: checked,
                         customModel: checked ? s.customModel || {
-                          id: "",
-                          name: "",
-                          url: "",
-                          apiKey: ""
+                          id: null,
+                          name: null,
+                          serviceUrl: null,
+                          apiKey: null
                         } : null,
                       }))
                     }
                   />
                 </div>
 
-                {settings.useCustomModel && (
+                {settings.useCustomModel && settings.customModel && (
                   <div className="space-y-4 p-4 border rounded-lg bg-gray-50 dark:bg-gray-800">
                     <div>
                       <Label htmlFor="custom-model-name">
-                        <div>模型名称</div>
+                        <div>Model Name</div>
                         <div className="font-light mt-1 text-xs">
-                          自定义模型的显示名称
+                          Display name for the custom model.
                         </div>
                       </Label>
                       <Input
                         id="custom-model-name"
-                        placeholder="例如：Custom GPT-4"
-                        value={settings.customModel?.name || ""}
+                        placeholder="e.g., Custom GPT-4"
+                        value={settings.customModel.name || ""}
                         onChange={(e) =>
                           setSettings((s) => ({
                             ...s,
                             customModel: {
-                              ...s.customModel!,
-                              name: e.target.value,
+                              ...(s.customModel!),
+                              name: e.target.value || null,
                             },
                           }))
                         }
@@ -188,21 +188,21 @@ function SettingsDialog({ settings, setSettings }: Props) {
 
                     <div>
                       <Label htmlFor="custom-model-id">
-                        <div>模型ID</div>
+                        <div>Model ID</div>
                         <div className="font-light mt-1 text-xs">
-                          要调用的模型的标识符
+                          Identifier of the model to be called.
                         </div>
                       </Label>
                       <Input
                         id="custom-model-id"
-                        placeholder="例如：gpt-4o, claude-3-5-sonnet"
-                        value={settings.customModel?.id || ""}
+                        placeholder="e.g., gpt-4o, claude-3-5-sonnet"
+                        value={settings.customModel.id || ""}
                         onChange={(e) =>
                           setSettings((s) => ({
                             ...s,
                             customModel: {
-                              ...s.customModel!,
-                              id: e.target.value,
+                              ...(s.customModel!),
+                              id: e.target.value || null,
                             },
                           }))
                         }
@@ -210,22 +210,22 @@ function SettingsDialog({ settings, setSettings }: Props) {
                     </div>
 
                     <div>
-                      <Label htmlFor="custom-model-url">
-                        <div>API端点URL</div>
+                      <Label htmlFor="custom-model-service-url">
+                        <div>Service URL</div>
                         <div className="font-light mt-1 text-xs">
-                          模型服务的完整API端点地址
+                          Full API endpoint address for the model service.
                         </div>
                       </Label>
                       <Input
-                        id="custom-model-url"
-                        placeholder="例如：https://api.openai.com/v1/chat/completions"
-                        value={settings.customModel?.url || ""}
+                        id="custom-model-service-url"
+                        placeholder="e.g., https://api.openai.com/v1/chat/completions"
+                        value={settings.customModel.serviceUrl || ""}
                         onChange={(e) =>
                           setSettings((s) => ({
                             ...s,
                             customModel: {
-                              ...s.customModel!,
-                              url: e.target.value,
+                              ...(s.customModel!),
+                              serviceUrl: e.target.value || null,
                             },
                           }))
                         }
@@ -234,22 +234,22 @@ function SettingsDialog({ settings, setSettings }: Props) {
 
                     <div>
                       <Label htmlFor="custom-model-api-key">
-                        <div>API密钥</div>
+                        <div>API Key</div>
                         <div className="font-light mt-1 text-xs">
-                          访问模型服务所需的API密钥
+                          API key required to access the model service.
                         </div>
                       </Label>
                       <Input
                         id="custom-model-api-key"
                         type="password"
-                        placeholder="输入API密钥"
-                        value={settings.customModel?.apiKey || ""}
+                        placeholder="Enter API Key"
+                        value={settings.customModel.apiKey || ""}
                         onChange={(e) =>
                           setSettings((s) => ({
                             ...s,
                             customModel: {
-                              ...s.customModel!,
-                              apiKey: e.target.value,
+                              ...(s.customModel!),
+                              apiKey: e.target.value || null,
                             },
                           }))
                         }

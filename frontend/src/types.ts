@@ -7,10 +7,10 @@ export enum EditorTheme {
 }
 
 export interface CustomModel {
-  id: string;
-  name: string;
-  url: string;
-  apiKey: string;
+  id: string | null;
+  name: string | null; // Keeping name for now, but making it nullable
+  serviceUrl: string | null; // Renamed from url and made nullable
+  apiKey: string | null; // Made nullable
 }
 
 export interface Settings {
@@ -26,7 +26,7 @@ export interface Settings {
   anthropicApiKey: string | null; // Added property for anthropic API key
   // Custom model configuration
   useCustomModel: boolean;
-  customModel: CustomModel | null;
+  customModel: CustomModel | null; // This will now use the updated CustomModel interface
 }
 
 export enum AppState {
@@ -49,4 +49,9 @@ export interface CodeGenerationParams {
   isImportedFromCode?: boolean;
 }
 
-export type FullGenerationSettings = CodeGenerationParams & Settings;
+export type FullGenerationSettings = CodeGenerationParams & Settings & {
+  // Optional top-level properties for when useCustomModel is true
+  customModelId?: string | null;
+  customModelServiceUrl?: string | null;
+  customModelApiKey?: string | null;
+};
