@@ -113,11 +113,15 @@ function App() {
     }
     
     // Initialize custom model settings if not present
+    // This ensures that if settings.useCustomModel is undefined (e.g. from older persisted state),
+    // it gets initialized correctly along with a default structure for customModel.
     if (settings.useCustomModel === undefined) {
       setSettings((prev) => ({
         ...prev,
         useCustomModel: false,
-        customModel: null,
+        // Initialize customModel to an object with null fields,
+        // consistent with the CustomModel type and SettingsDialog expectations.
+        customModel: { id: null, name: null, serviceUrl: null, apiKey: null },
       }));
     }
   }, [settings.generatedCodeConfig, settings.useCustomModel, setSettings]);
@@ -196,7 +200,25 @@ function App() {
     setAppState(AppState.CODING);
 
     // Merge settings with params
-    const updatedParams = { ...params, ...settings };
+    let updatedParams: Record<string, any> = { ...params, ...settings };
+
+    // Add custom model parameters if useCustomModel is true
+    if (settings.useCustomModel && settings.customModel) {
+      updatedParams = {
+        ...updatedParams,
+        customModelId: settings.customModel.id,
+        customModelServiceUrl: settings.customModel.serviceUrl,
+        customModelApiKey: settings.customModel.apiKey,
+        // useCustomModel: true, // This is already part of ...settings
+      };
+    }
+    // Ensure useCustomModel is explicitly false if not using custom model,
+    // or if customModel details are missing.
+    // Note: settings.useCustomModel is already spread into updatedParams.
+    // If it's true but customModel is null, the backend should handle this case gracefully.
+    // For clarity, we ensure it's explicitly set based on the condition.
+    updatedParams.useCustomModel = !!(settings.useCustomModel && settings.customModel);
+
 
     // Create variants dynamically - start with 4 to handle most cases
     // Backend will use however many it needs (typically 3)

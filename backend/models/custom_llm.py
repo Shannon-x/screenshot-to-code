@@ -1,0 +1,142 @@
+import json
+import time
+import traceback
+from typing import Any, Callable, Coroutine, List, Awaitable
+
+import aiohttp
+from openai.types.chat import ChatCompletionMessageParam
+
+# Assuming Completion is a dict-like structure, define it more concretely if possible
+# For now, using Any
+Completion = dict[str, Any]
+
+
+async def call_custom_llm_api(
+    prompt_messages: List[ChatCompletionMessageParam],
+    model_id: str,
+    service_url: str,
+    api_key: str | None,
+    # Callback to stream chunks: content_chunk, variant_index
+    stream_callback: Callable[[str, int], Awaitable[None]],
+    index: int,  # Variant index
+    # TODO: Add other potential parameters like temperature, max_tokens if configurable by user
+) -> Completion:
+    """
+    Calls a custom Language Model API.
+
+    Args:
+        prompt_messages: List of messages forming the prompt.
+        model_id: The ID or name of the custom model.
+        service_url: The full URL of the custom model's API endpoint.
+        api_key: Optional API key for authorization.
+        stream_callback: Asynchronous callback function to handle streaming content chunks.
+                         It receives the content chunk (str) and variant index (int).
+        index: The variant index, passed to the stream_callback.
+
+    Returns:
+        A Completion object (dictionary) with 'duration' and 'code' (full response text).
+    """
+    start_time = time.time()
+
+    try:
+        # Convert messages to a generic format, attempt to handle multimodal content placeholder
+        formatted_messages = []
+        for msg in prompt_messages:
+            if msg["role"] == "user" and isinstance(msg["content"], list):
+                text_parts = []
+                image_parts_count = 0
+                for content_part in msg["content"]:
+                    if content_part["type"] == "text":
+                        text_parts.append(content_part["text"])
+                    elif content_part["type"] == "image_url":
+                        # Actual image data handling would require knowing the custom API's spec
+                        # For now, just count them as a placeholder.
+                        image_parts_count += 1
+
+                combined_text = "\n".join(text_parts)
+                if image_parts_count > 0:
+                    combined_text += f"\n\n[Image data for {image_parts_count} image(s) would be processed here if custom API supports it. This is a placeholder.]"
+
+                formatted_messages.append({"role": "user", "content": combined_text})
+            else:
+                # Ensure content is string
+                content_str = msg["content"] if isinstance(msg["content"], str) else str(msg["content"])
+                formatted_messages.append({"role": msg["role"], "content": content_str})
+
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        # Default request body (OpenAI-like)
+        request_data: dict[str, Any] = {
+            "model": model_id,
+            "messages": formatted_messages,
+            "stream": True, # Assuming streaming is preferred
+            "temperature": 0.1, # Example default
+            "max_tokens": 4000   # Example default
+        }
+
+        # Adjust request_data for known API signatures (e.g., Anthropic)
+        if "anthropic" in service_url.lower():
+            system_prompts = [m["content"] for m in formatted_messages if m["role"] == "system"]
+            user_messages = [m for m in formatted_messages if m["role"] != "system"]
+            request_data["messages"] = user_messages
+            if system_prompts:
+                request_data["system"] = "\n".join(system_prompts)
+            # Anthropic specific parameters if any, e.g., max_tokens_to_sample
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                service_url,
+                headers=headers,
+                json=request_data,
+                timeout=aiohttp.ClientTimeout(total=180)  # Increased timeout
+            ) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    raise Exception(
+                        f"Custom model API request failed with status {response.status}: {error_text}"
+                    )
+
+                full_response_text = ""
+                # Process streaming response (Server-Sent Events like format)
+                async for line_bytes in response.content:
+                    line = line_bytes.decode("utf-8").strip()
+                    if not line:
+                        continue
+
+                    if line.startswith("data: "):
+                        data_content = line[len("data: "):]
+                        if data_content == "[DONE]":
+                            break
+                        try:
+                            chunk_json = json.loads(data_content)
+                            content_chunk = ""
+                            # Common response structures for streaming chat completions
+                            if isinstance(chunk_json.get("choices"), list) and chunk_json["choices"]:
+                                delta = chunk_json["choices"][0].get("delta", {})
+                                content_chunk = delta.get("content", "")
+                            elif isinstance(chunk_json.get("delta"), dict): # Anthropic
+                                content_chunk = chunk_json["delta"].get("text", "")
+                            elif "text" in chunk_json: # Other direct text
+                                content_chunk = chunk_json["text"]
+                            # Add more parsing logic if other common formats exist
+
+                            if content_chunk:
+                                full_response_text += content_chunk
+                                await stream_callback(content_chunk, index)
+                        except json.JSONDecodeError:
+                            # print(f"Warning: Could not decode JSON from chunk: {data_content}")
+                            pass # Ignore non-JSON data lines if any
+
+                duration = time.time() - start_time
+                return {"duration": duration, "code": full_response_text}
+
+    except Exception as e:
+        print(f"Error calling custom LLM API for variant {index}: {e}")
+        traceback.print_exc()
+        duration = time.time() - start_time
+        error_message = f"Custom Model API Call Failed: {str(e)}"
+        # Send the error as a content chunk via callback
+        await stream_callback(error_message, index)
+        return {"duration": duration, "code": error_message}
