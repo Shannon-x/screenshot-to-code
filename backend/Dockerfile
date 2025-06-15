@@ -8,6 +8,9 @@ RUN pip install "poetry==$POETRY_VERSION"
 # Set work directory
 WORKDIR /app
 
+# Install ffmpeg for moviepy
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+
 # Copy only requirements to cache them in docker layer
 COPY poetry.lock pyproject.toml /app/
 
