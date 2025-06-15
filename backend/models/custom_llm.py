@@ -64,29 +64,48 @@ async def call_custom_llm_api(
                 formatted_messages.append({"role": msg["role"], "content": content_str})
 
         headers = {"Content-Type": "application/json"}
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
-            print(f"Using API key for custom model (ends with: ...{api_key[-4:] if len(api_key) > 4 else 'short'})")
-        else:
-            print("Warning: No API key provided for custom model")
-
-        # Default request body (OpenAI-like)
-        request_data: dict[str, Any] = {
-            "model": model_id,
-            "messages": formatted_messages,
-            "stream": True, # Assuming streaming is preferred
-            "temperature": 0.1, # Example default
-            "max_tokens": 4000   # Example default
-        }
-
-        # Adjust request_data for known API signatures (e.g., Anthropic)
+        
+        # Handle Anthropic API specific authentication and format
         if "anthropic" in service_url.lower():
+            print(f"[DEBUG] Detected Anthropic API endpoint: {service_url}")
+            if api_key:
+                headers["x-api-key"] = api_key  # Anthropic uses x-api-key header
+                headers["anthropic-version"] = "2023-06-01"  # Required version header
+                print(f"[DEBUG] Using Anthropic API key (ends with: ...{api_key[-4:] if len(api_key) > 4 else 'short'})")
+            else:
+                print("Warning: No API key provided for Anthropic API")
+            
+            # Anthropic API format
             system_prompts = [m["content"] for m in formatted_messages if m["role"] == "system"]
             user_messages = [m for m in formatted_messages if m["role"] != "system"]
-            request_data["messages"] = user_messages
+            
+            request_data: dict[str, Any] = {
+                "model": model_id,
+                "messages": user_messages,
+                "max_tokens": 4000,
+                "temperature": 0.1,
+                "stream": True
+            }
+            
             if system_prompts:
                 request_data["system"] = "\n".join(system_prompts)
-            # Anthropic specific parameters if any, e.g., max_tokens_to_sample
+                
+            print(f"[DEBUG] Anthropic request data: {json.dumps(request_data, indent=2)}")
+        else:
+            # Default OpenAI-like format
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+                print(f"[DEBUG] Using Bearer token for custom model (ends with: ...{api_key[-4:] if len(api_key) > 4 else 'short'})")
+            else:
+                print("Warning: No API key provided for custom model")
+
+            request_data: dict[str, Any] = {
+                "model": model_id,
+                "messages": formatted_messages,
+                "stream": True,
+                "temperature": 0.1,
+                "max_tokens": 4000
+            }
 
         async with aiohttp.ClientSession() as session:
             async with session.post(
@@ -115,15 +134,25 @@ async def call_custom_llm_api(
                         try:
                             chunk_json = json.loads(data_content)
                             content_chunk = ""
-                            # Common response structures for streaming chat completions
-                            if isinstance(chunk_json.get("choices"), list) and chunk_json["choices"]:
+                            
+                            # Handle Anthropic API streaming format
+                            if "anthropic" in service_url.lower():
+                                if chunk_json.get("type") == "content_block_delta":
+                                    delta = chunk_json.get("delta", {})
+                                    if delta.get("type") == "text_delta":
+                                        content_chunk = delta.get("text", "")
+                                elif chunk_json.get("type") == "message_delta":
+                                    # Handle message-level deltas if needed
+                                    pass
+                            # OpenAI-like format
+                            elif isinstance(chunk_json.get("choices"), list) and chunk_json["choices"]:
                                 delta = chunk_json["choices"][0].get("delta", {})
                                 content_chunk = delta.get("content", "")
-                            elif isinstance(chunk_json.get("delta"), dict): # Anthropic
+                            # Generic fallbacks
+                            elif isinstance(chunk_json.get("delta"), dict):
                                 content_chunk = chunk_json["delta"].get("text", "")
-                            elif "text" in chunk_json: # Other direct text
+                            elif "text" in chunk_json:
                                 content_chunk = chunk_json["text"]
-                            # Add more parsing logic if other common formats exist
 
                             if content_chunk:
                                 full_response_text += content_chunk
