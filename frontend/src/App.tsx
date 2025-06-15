@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { generateCode } from "./generateCode";
 import SettingsDialog from "./components/settings/SettingsDialog";
-import { AppState, CodeGenerationParams, EditorTheme, Settings } from "./types";
+import { AppState, CodeGenerationParams, EditorTheme, Settings, FullGenerationSettings } from "./types";
 import { IS_RUNNING_ON_CLOUD } from "./config";
 import { PicoBadge } from "./components/messages/PicoBadge";
 import { OnboardingNote } from "./components/messages/OnboardingNote";
@@ -200,23 +200,20 @@ function App() {
     setAppState(AppState.CODING);
 
     // Merge settings with params
-    let updatedParams: Record<string, any> = { ...params, ...settings };
+    let updatedParams: FullGenerationSettings = {
+      ...params,
+      ...settings, // Spreading settings here will include useCustomModel and customModel object
+    };
 
-    // Add custom model parameters if useCustomModel is true
+    // Add custom model parameters to the top level if useCustomModel is true
     if (settings.useCustomModel && settings.customModel) {
-      updatedParams = {
-        ...updatedParams,
-        customModelId: settings.customModel.id,
-        customModelServiceUrl: settings.customModel.serviceUrl,
-        customModelApiKey: settings.customModel.apiKey,
-        // useCustomModel: true, // This is already part of ...settings
-      };
+      updatedParams.customModelId = settings.customModel.id;
+      updatedParams.customModelServiceUrl = settings.customModel.serviceUrl;
+      updatedParams.customModelApiKey = settings.customModel.apiKey;
     }
-    // Ensure useCustomModel is explicitly false if not using custom model,
-    // or if customModel details are missing.
-    // Note: settings.useCustomModel is already spread into updatedParams.
-    // If it's true but customModel is null, the backend should handle this case gracefully.
-    // For clarity, we ensure it's explicitly set based on the condition.
+    // Ensure useCustomModel is correctly reflecting the actual state.
+    // If settings.useCustomModel is true but settings.customModel is null,
+    // then custom model parameters won't be set, and useCustomModel should effectively be false.
     updatedParams.useCustomModel = !!(settings.useCustomModel && settings.customModel);
 
 
