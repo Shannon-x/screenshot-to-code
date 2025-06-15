@@ -270,7 +270,14 @@ class ParameterExtractionStage:
         generation_type = cast(Literal["create", "update"], generation_type)
 
         # Extract custom model configuration
-        use_custom_model = params.get("useCustomModel", "false").lower() == "true"
+        # Handle both boolean and string values from frontend
+        use_custom_model_param = params.get("useCustomModel", False)
+        if isinstance(use_custom_model_param, bool):
+            use_custom_model = use_custom_model_param
+        else:
+            # Handle string values for backwards compatibility
+            use_custom_model = str(use_custom_model_param).lower() == "true"
+        
         custom_model_id = None
         custom_model_service_url = None
         custom_model_api_key = None
