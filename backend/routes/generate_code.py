@@ -363,14 +363,12 @@ class ModelSelectionStage:
     ) -> List[Llm]:
         """Select appropriate models based on available API keys"""
         try:
-            # If using custom model, create a custom Llm enum value
+            # If using custom model, create placeholder models for each variant
             if use_custom_model and custom_model_id:
-                # For custom models, we'll use a special handling approach
-                # We'll return a list with a single custom model identifier
                 print(f"Using custom model: {custom_model_id}")
-                # Create a temporary Llm entry for the custom model
-                # We'll handle this specially in the completion generation
-                return [Llm.GPT_4O_2024_11_20]  # Placeholder, actual custom model handling in completion stage
+                # Create placeholder models for each variant (NUM_VARIANTS)
+                # The actual custom model handling happens in the completion generation stage
+                return [Llm.GPT_4O_2024_11_20] * NUM_VARIANTS  # Placeholder models
             
             variant_models = self._get_variant_models(
                 generation_type,
@@ -1029,7 +1027,15 @@ class CodeGenerationMiddleware(Middleware):
 
                     # Convert to list format
                     context.completions = []
-                    for i in range(len(context.variant_models)):
+                    # For custom models, use NUM_VARIANTS instead of variant_models length
+                    if context.extracted_params.use_custom_model:
+                        expected_variants = NUM_VARIANTS
+                    else:
+                        expected_variants = len(context.variant_models)
+                    
+                    print(f"[DEBUG] Expected variants: {expected_variants}, Actual completions: {len(context.variant_completions)}")
+                    
+                    for i in range(expected_variants):
                         if i in context.variant_completions:
                             context.completions.append(context.variant_completions[i])
                         else:
