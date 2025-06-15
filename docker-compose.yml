@@ -14,14 +14,60 @@ services:
       #- BACKEND_PORT=7001   # if you change the port, make sure to also change the VITE_WS_BACKEND_URL at frontend/.env.local
       # - OPENAI_API_KEY=your_openai_api_key
     
-    ports:
-      - "${BACKEND_PORT:-7001}:${BACKEND_PORT:-7001}"
-
+    # 内部网络通信不需要暴露端口到宿主机（可选）
+    # ports:
+    #   - "${BACKEND_PORT:-7001}:${BACKEND_PORT:-7001}"
+    
+    # 内部暴露端口给其他容器
+    expose:
+      - "${BACKEND_PORT:-7001}"
+    
+    # 设置容器内的服务器监听所有接口
     command: poetry run uvicorn main:app --host 0.0.0.0 --port ${BACKEND_PORT:-7001}
-  
+    
+    # 添加网络
+    networks:
+      - app-network
+
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    
     ports:
       - "5173:5173"
+    
+    # 设置环境变量，指向后端服务名
+    environment:
+      - VITE_WS_BACKEND_URL=ws://backend:${BACKEND_PORT:-7001}
+      - VITE_HTTP_BACKEND_URL=http://backend:${BACKEND_PORT:-7001}
+      - VITE_IS_DEPLOYED=false
+    
+    # 依赖后端服务
+    depends_on:
+      - backend
+    
+    # 添加网络
+    networks:
+      - app-network
+
+  # 反向代理服务（解决浏览器混合内容问题）
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      # 如果有SSL证书，挂载证书文件
+      # - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - app-network
+
+# 定义网络
+networks:
+  app-network:
+    driver: bridge

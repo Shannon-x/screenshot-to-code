@@ -2,41 +2,44 @@
 export const IS_RUNNING_ON_CLOUD =
   import.meta.env.VITE_IS_DEPLOYED === "true" || false;
 
-// 智能选择WebSocket协议：处理混合内容问题的多种方案
+// 智能选择WebSocket协议：处理容器环境和浏览器环境
 function getWebSocketURL(): string {
   const envURL = import.meta.env.VITE_WS_BACKEND_URL;
   
   if (envURL) {
-    // 开发环境：直接使用环境变量
-    if (typeof window === 'undefined' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      return envURL;
-    }
-    
-    // 生产环境HTTPS：尝试多种方案
-    if (window.location.protocol === 'https:') {
-      // 方案1: 尝试使用相同域名的WebSocket (推荐)
-      const currentHost = window.location.host;
-      const wsPath = '/generate-code';
-      const sameOriginWS = `wss://${currentHost}${wsPath}`;
-      
-      // 如果环境变量指向当前域名，使用安全的wss://
-      if (envURL.includes(currentHost)) {
-        return sameOriginWS;
+    // 如果是浏览器环境，需要使用当前页面的协议和域名
+    if (typeof window !== 'undefined') {
+      // 开发环境：localhost访问
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return envURL;
       }
       
-      // 方案2: 如果后端支持WSS，转换协议
-      const wssUrl = envURL.replace(/^ws:\/\//, 'wss://');
-      return wssUrl;
+      // 生产环境：使用当前页面的协议和域名（同源）
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      return `${protocol}//${host}/generate-code`;
     }
     
+    // 服务器端渲染或构建时使用环境变量
     return envURL;
   }
   
   // 默认值处理
-  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
-    return "wss://127.0.0.1:7001";
+  if (typeof window !== 'undefined') {
+    // 浏览器环境
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    
+    // 如果是localhost开发环境，使用默认端口
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return `${protocol === 'wss:' ? 'ws:' : protocol}//127.0.0.1:7001`;
+    }
+    
+    // 生产环境使用当前域名
+    return `${protocol}//${host}/generate-code`;
   }
-  return "ws://127.0.0.1:7001";
+  
+  return "ws://backend:7001"; // 容器内部通信
 }
 
 export const WS_BACKEND_URL = getWebSocketURL();
@@ -46,32 +49,39 @@ function getHTTPURL(): string {
   const envURL = import.meta.env.VITE_HTTP_BACKEND_URL;
   
   if (envURL) {
-    // 开发环境：直接使用环境变量
-    if (typeof window === 'undefined' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      return envURL;
-    }
-    
-    // 生产环境HTTPS：使用同域名或转换协议
-    if (window.location.protocol === 'https:') {
-      const currentHost = window.location.host;
-      
-      // 如果环境变量指向当前域名，使用安全的https://
-      if (envURL.includes(currentHost)) {
-        return `https://${currentHost}`;
+    // 如果是浏览器环境，需要使用当前页面的协议和域名
+    if (typeof window !== 'undefined') {
+      // 开发环境：localhost访问
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return envURL;
       }
       
-      // 转换协议
-      return envURL.replace(/^http:\/\//, 'https://');
+      // 生产环境：使用当前页面的协议和域名（同源）
+      const protocol = window.location.protocol;
+      const host = window.location.host;
+      return `${protocol}//${host}/api`;
     }
     
+    // 服务器端渲染或构建时使用环境变量
     return envURL;
   }
   
   // 默认值处理
-  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
-    return "https://127.0.0.1:7001";
+  if (typeof window !== 'undefined') {
+    // 浏览器环境
+    const protocol = window.location.protocol;
+    const host = window.location.host;
+    
+    // 如果是localhost开发环境，使用默认端口
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return `${protocol === 'https:' ? 'http:' : protocol}//127.0.0.1:7001`;
+    }
+    
+    // 生产环境使用当前域名
+    return `${protocol}//${host}/api`;
   }
-  return "http://127.0.0.1:7001";
+  
+  return "http://backend:7001"; // 容器内部通信
 }
 
 export const HTTP_BACKEND_URL = getHTTPURL();
