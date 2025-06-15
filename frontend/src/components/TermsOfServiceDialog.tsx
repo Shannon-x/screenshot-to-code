@@ -20,13 +20,31 @@ const TermsOfServiceDialog: React.FC<{
   const [email, setEmail] = React.useState("");
 
   const onSubscribe = async () => {
-    await fetch("https://backend.buildpicoapps.com/form", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email, secret: PICO_BACKEND_FORM_SECRET }),
-    });
+    try {
+      // 只有在配置了PICO_BACKEND_FORM_SECRET的情况下才发送请求
+      if (!PICO_BACKEND_FORM_SECRET) {
+        console.log("PICO_BACKEND_FORM_SECRET not configured, skipping subscription");
+        return;
+      }
+
+      const response = await fetch("https://backend.buildpicoapps.com/form", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, secret: PICO_BACKEND_FORM_SECRET }),
+      });
+
+      if (!response.ok) {
+        console.warn(`Subscription request failed with status: ${response.status}`);
+        // 不显示错误给用户，因为这不是关键功能
+      } else {
+        console.log("Subscription successful");
+      }
+    } catch (error) {
+      console.warn("Subscription request failed:", error);
+      // 不显示错误给用户，因为这不是关键功能
+    }
   };
 
   return (
