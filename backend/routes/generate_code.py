@@ -290,6 +290,9 @@ class ParameterExtractionStage:
             # Handle string values for backwards compatibility
             use_custom_model = str(use_custom_model_param).lower() == "true"
         
+        print(f"[DEBUG] Parameter extraction - use_custom_model: {use_custom_model}")
+        print(f"[DEBUG] All received params keys: {list(params.keys())}")
+        
         custom_model_id = None
         custom_model_service_url = None
         custom_model_api_key = None
@@ -299,6 +302,12 @@ class ParameterExtractionStage:
             custom_model_id = params.get("customModelId")
             custom_model_service_url = params.get("customModelServiceUrl")
             custom_model_api_key = params.get("customModelApiKey") # This can be optional
+
+            print(f"[DEBUG] Extracted custom_model_id: {custom_model_id}")
+            print(f"[DEBUG] Extracted custom_model_service_url: {custom_model_service_url}")
+            print(f"[DEBUG] Extracted custom_model_api_key: {'[PRESENT]' if custom_model_api_key else '[MISSING]'}")
+            if custom_model_api_key:
+                print(f"[DEBUG] API key last 4 chars: ...{custom_model_api_key[-4:]}")
 
             # Validate required custom model fields
             # API key might be optional for some public models or if embedded in URL
@@ -638,6 +647,13 @@ class ParallelGenerationStage:
 
         # Handle custom model first
         if self.use_custom_model:
+            print(f"[DEBUG] Creating custom model tasks")
+            print(f"[DEBUG] Custom model ID: {self.custom_model_id}")
+            print(f"[DEBUG] Custom model URL: {self.custom_model_url}")
+            print(f"[DEBUG] Custom API key provided: {'Yes' if self.custom_model_api_key else 'No'}")
+            if self.custom_model_api_key:
+                print(f"[DEBUG] API key last 4 chars: ...{self.custom_model_api_key[-4:]}")
+            
             assert self.custom_model_id is not None
             assert self.custom_model_url is not None # This is the service_url
             
@@ -646,6 +662,7 @@ class ParallelGenerationStage:
             # Or, if variant_models is expected to be correctly set for custom (e.g. [Llm.CUSTOM_MODEL_PLACEHOLDER]*NUM_VARIANTS)
             # then iterate through it. Assuming NUM_VARIANTS is the desired number of calls.
             for i in range(NUM_VARIANTS): # Use NUM_VARIANTS to determine number of calls for custom model
+                print(f"[DEBUG] Creating task {i} for custom model")
                 tasks.append(
                     call_custom_llm_api(
                         prompt_messages=prompt_messages,
