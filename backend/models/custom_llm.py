@@ -66,6 +66,9 @@ async def call_custom_llm_api(
         headers = {"Content-Type": "application/json"}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
+            print(f"Using API key for custom model (ends with: ...{api_key[-4:] if len(api_key) > 4 else 'short'})")
+        else:
+            print("Warning: No API key provided for custom model")
 
         # Default request body (OpenAI-like)
         request_data: dict[str, Any] = {
@@ -137,6 +140,12 @@ async def call_custom_llm_api(
         traceback.print_exc()
         duration = time.time() - start_time
         error_message = f"Custom Model API Call Failed: {str(e)}"
-        # Send the error as a content chunk via callback
-        await stream_callback(error_message, index)
+        
+        # Try to send the error as a content chunk via callback
+        # But catch any WebSocket errors to avoid cascading failures
+        try:
+            await stream_callback(error_message, index)
+        except Exception as callback_error:
+            print(f"Failed to send error message via callback: {callback_error}")
+            
         return {"duration": duration, "code": error_message}

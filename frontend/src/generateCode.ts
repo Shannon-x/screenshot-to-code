@@ -67,7 +67,16 @@ export function generateCode(
   params: FullGenerationSettings,
   callbacks: CodeGenerationCallbacks
 ) {
-  const baseWsUrl = `${WS_BACKEND_URL}/generate-code`;
+  // WS_BACKEND_URL 已经包含了正确的端点，不需要再添加 /generate-code
+  let baseWsUrl = WS_BACKEND_URL;
+  
+  // 只有在开发环境或者URL不包含 /generate-code 时才添加路径
+  if (typeof window !== 'undefined' && 
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+      !baseWsUrl.includes('/generate-code')) {
+    baseWsUrl = `${baseWsUrl}/generate-code`;
+  }
+  
   const possibleUrls = generateWebSocketUrls(baseWsUrl);
   
   console.log("Possible WebSocket URLs:", possibleUrls);

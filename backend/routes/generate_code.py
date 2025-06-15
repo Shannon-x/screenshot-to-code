@@ -165,6 +165,11 @@ class WebSocketCommunicator:
         variantIndex: int,
     ) -> None:
         """Send a message to the client with debug logging"""
+        # Check if WebSocket is still open before sending
+        if self.is_closed:
+            print(f"Attempted to send message to closed WebSocket: {type} (variant {variantIndex})")
+            return
+            
         # Print for debugging on the backend
         if type == "error":
             print(f"Error (variant {variantIndex}): {value}")
@@ -175,9 +180,16 @@ class WebSocketCommunicator:
         elif type == "variantError":
             print(f"Variant {variantIndex} error: {value}")
 
-        await self.websocket.send_json(
-            {"type": type, "value": value, "variantIndex": variantIndex}
-        )
+        try:
+            await self.websocket.send_json(
+                {"type": type, "value": value, "variantIndex": variantIndex}
+            )
+        except RuntimeError as e:
+            if "close message has been sent" in str(e):
+                print(f"WebSocket already closed, cannot send {type} message")
+                self.is_closed = True
+            else:
+                raise e
 
     async def throw_error(self, message: str) -> None:
         """Send an error message and close the connection"""
@@ -846,7 +858,10 @@ class ParallelGenerationStage:
 
             # Only send error message if it hasn't been sent already
             if not isinstance(e, VariantErrorAlreadySent):
-                await self.send_message("variantError", str(e), index)
+                try:
+                    await self.send_message("variantError", str(e), index)
+                except Exception as send_error:
+                    print(f"Failed to send variant error message: {send_error}")
 
 
 # Pipeline Middleware Implementations
