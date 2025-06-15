@@ -39,25 +39,63 @@ async def call_custom_llm_api(
     start_time = time.time()
 
     try:
-        # Convert messages to a generic format, attempt to handle multimodal content placeholder
+        # Convert messages to a generic format, with proper image handling for Anthropic
         formatted_messages = []
         for msg in prompt_messages:
             if msg["role"] == "user" and isinstance(msg["content"], list):
-                text_parts = []
-                image_parts_count = 0
-                for content_part in msg["content"]:
-                    if content_part["type"] == "text":
-                        text_parts.append(content_part["text"])
-                    elif content_part["type"] == "image_url":
-                        # Actual image data handling would require knowing the custom API's spec
-                        # For now, just count them as a placeholder.
-                        image_parts_count += 1
+                # Handle multimodal content (text + images)
+                if "anthropic" in service_url.lower():
+                    # Anthropic format: preserve image data
+                    content_parts = []
+                    for content_part in msg["content"]:
+                        if content_part["type"] == "text":
+                            content_parts.append({
+                                "type": "text",
+                                "text": content_part["text"]
+                            })
+                        elif content_part["type"] == "image_url":
+                            # Extract base64 image data for Anthropic
+                            image_url = content_part["image_url"]["url"]
+                            if image_url.startswith("data:image"):
+                                # Parse data URL: data:image/jpeg;base64,/9j/4AAQ...
+                                try:
+                                    media_type, base64_data = image_url.split(",", 1)
+                                    # Extract format from media type
+                                    format_match = media_type.split(";")[0].split("/")[1]  # e.g., "jpeg", "png"
+                                    
+                                    content_parts.append({
+                                        "type": "image",
+                                        "source": {
+                                            "type": "base64",
+                                            "media_type": f"image/{format_match}",
+                                            "data": base64_data
+                                        }
+                                    })
+                                    print(f"[DEBUG] Added image to Anthropic request: {format_match} format")
+                                except Exception as e:
+                                    print(f"[DEBUG] Failed to parse image data: {e}")
+                                    # Fallback to text description
+                                    content_parts.append({
+                                        "type": "text", 
+                                        "text": "[Image could not be processed]"
+                                    })
+                    
+                    formatted_messages.append({"role": "user", "content": content_parts})
+                else:
+                    # OpenAI-like format: combine text and describe images
+                    text_parts = []
+                    image_parts_count = 0
+                    for content_part in msg["content"]:
+                        if content_part["type"] == "text":
+                            text_parts.append(content_part["text"])
+                        elif content_part["type"] == "image_url":
+                            image_parts_count += 1
 
-                combined_text = "\n".join(text_parts)
-                if image_parts_count > 0:
-                    combined_text += f"\n\n[Image data for {image_parts_count} image(s) would be processed here if custom API supports it. This is a placeholder.]"
+                    combined_text = "\n".join(text_parts)
+                    if image_parts_count > 0:
+                        combined_text += f"\n\n[Image data for {image_parts_count} image(s) would be processed here if custom API supports it. This is a placeholder.]"
 
-                formatted_messages.append({"role": "user", "content": combined_text})
+                    formatted_messages.append({"role": "user", "content": combined_text})
             else:
                 # Ensure content is string
                 content_str = msg["content"] if isinstance(msg["content"], str) else str(msg["content"])
