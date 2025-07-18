@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 import traceback
 from typing import Callable, Awaitable
 from fastapi import APIRouter, WebSocket
+from starlette.websockets import WebSocketDisconnect
 import openai
 from codegen.utils import extract_html_content
 from config import (
@@ -37,6 +38,8 @@ from typing import (
     cast,
     get_args,
 )
+from validation import ValidatedGenerationParams, sanitize_html_output, validate_api_response
+from security.key_manager import key_manager
 from openai.types.chat import ChatCompletionMessageParam
 import aiohttp
 import json
@@ -195,9 +198,13 @@ class WebSocketCommunicator:
         """Send an error message and close the connection"""
         print(message)
         if not self.is_closed:
-            await self.websocket.send_json({"type": "error", "value": message})
-            await self.websocket.close(APP_ERROR_WEB_SOCKET_CODE)
-            self.is_closed = True
+            try:
+                await self.websocket.send_json({"type": "error", "value": message})
+                await self.websocket.close(APP_ERROR_WEB_SOCKET_CODE)
+            except Exception as e:
+                print(f"Error while sending error message: {e}")
+            finally:
+                self.is_closed = True
 
     async def receive_params(self) -> Dict[str, str]:
         """Receive parameters from the client"""
@@ -208,8 +215,11 @@ class WebSocketCommunicator:
     async def close(self) -> None:
         """Close the WebSocket connection"""
         if not self.is_closed:
-            await self.websocket.close()
             self.is_closed = True
+            try:
+                await self.websocket.close()
+            except Exception as e:
+                print(f"Error while closing WebSocket: {e}")
 
 
 @dataclass
@@ -894,6 +904,11 @@ class WebSocketSetupMiddleware(Middleware):
 
         try:
             await next_func()
+        except WebSocketDisconnect:
+            print("WebSocket disconnected by client")
+        except Exception as e:
+            print(f"Error in pipeline: {e}")
+            raise
         finally:
             # Always close the WebSocket
             await context.ws_comm.close()
@@ -905,22 +920,27 @@ class ParameterExtractionMiddleware(Middleware):
     async def process(
         self, context: PipelineContext, next_func: Callable[[], Awaitable[None]]
     ) -> None:
-        # Receive parameters
-        assert context.ws_comm is not None
-        context.params = await context.ws_comm.receive_params()
+        try:
+            # Receive parameters
+            assert context.ws_comm is not None
+            context.params = await context.ws_comm.receive_params()
 
-        # Extract and validate
-        param_extractor = ParameterExtractionStage(context.throw_error)
-        context.extracted_params = await param_extractor.extract_and_validate(
-            context.params
-        )
+            # Extract and validate
+            param_extractor = ParameterExtractionStage(context.throw_error)
+            context.extracted_params = await param_extractor.extract_and_validate(
+                context.params
+            )
 
-        # Log what we're generating
-        print(
-            f"Generating {context.extracted_params.stack} code in {context.extracted_params.input_mode} mode"
-        )
+            # Log what we're generating
+            print(
+                f"Generating {context.extracted_params.stack} code in {context.extracted_params.input_mode} mode"
+            )
 
-        await next_func()
+            await next_func()
+        except WebSocketDisconnect:
+            # Client disconnected while receiving params
+            print("Client disconnected during parameter extraction")
+            raise
 
 
 class StatusBroadcastMiddleware(Middleware):
@@ -1066,18 +1086,38 @@ class PostProcessingMiddleware(Middleware):
 @router.websocket("/generate-code")
 async def stream_code(websocket: WebSocket):
     """Handle WebSocket code generation requests using a pipeline pattern"""
-    pipeline = Pipeline()
+    # Get client IP for rate limiting
+    from middleware.rate_limit import rate_limiter
+    
+    client_ip = websocket.client.host if websocket.client else "unknown"
+    forwarded_for = websocket.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        client_ip = forwarded_for.split(",")[0].strip()
+    
+    # Check WebSocket rate limit
+    if not rate_limiter.check_websocket_limit(client_ip):
+        await websocket.close(code=1008, reason="Too many connections")
+        return
+    
+    # Register WebSocket connection
+    rate_limiter.add_websocket_connection(client_ip)
+    
+    try:
+        pipeline = Pipeline()
 
-    # Configure the pipeline
-    pipeline.use(WebSocketSetupMiddleware())
-    pipeline.use(ParameterExtractionMiddleware())
-    pipeline.use(StatusBroadcastMiddleware())
-    pipeline.use(PromptCreationMiddleware())
-    pipeline.use(CodeGenerationMiddleware())
-    pipeline.use(PostProcessingMiddleware())
+        # Configure the pipeline
+        pipeline.use(WebSocketSetupMiddleware())
+        pipeline.use(ParameterExtractionMiddleware())
+        pipeline.use(StatusBroadcastMiddleware())
+        pipeline.use(PromptCreationMiddleware())
+        pipeline.use(CodeGenerationMiddleware())
+        pipeline.use(PostProcessingMiddleware())
 
-    # Execute the pipeline
-    await pipeline.execute(websocket)
+        # Execute the pipeline
+        await pipeline.execute(websocket)
+    finally:
+        # Remove WebSocket connection
+        rate_limiter.remove_websocket_connection(client_ip)
 
     # This method seems to be defined standalone at the end of the file.
     # It should ideally be part of ParallelGenerationStage or a new CustomLlmClient class.

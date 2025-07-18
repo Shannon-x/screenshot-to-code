@@ -92,8 +92,9 @@ function tryConnectToWebSocket(
   params: FullGenerationSettings,
   callbacks: CodeGenerationCallbacks
 ) {
-  if (currentIndex >= urls.length) {
-    // 所有URL都失败了
+  // Helper function to handle all URLs failed
+  const handleAllUrlsFailed = () => {
+    console.error("All WebSocket URLs failed");
     const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
     if (isHttps) {
       toast.error(
@@ -106,6 +107,11 @@ function tryConnectToWebSocket(
       toast.error(ERROR_MESSAGE);
     }
     callbacks.onCancel();
+  };
+
+  if (currentIndex >= urls.length) {
+    // 所有URL都失败了
+    handleAllUrlsFailed();
     return;
   }
   
@@ -120,6 +126,13 @@ function tryConnectToWebSocket(
     if (ws.readyState === WebSocket.CONNECTING) {
       console.log(`Connection timeout for ${wsUrl}`);
       ws.close();
+      // 继续尝试下一个URL
+      if (currentIndex + 1 < urls.length) {
+        console.log(`Trying next WebSocket URL after timeout...`);
+        tryConnectToWebSocket(urls, currentIndex + 1, wsRef, params, callbacks);
+      } else {
+        handleAllUrlsFailed();
+      }
     }
   }, 5000); // 5秒超时
   
@@ -163,21 +176,11 @@ function tryConnectToWebSocket(
       // 连接失败，尝试下一个URL
       if (currentIndex + 1 < urls.length) {
         console.log(`Trying next WebSocket URL...`);
-        tryConnectToWebSocket(urls, currentIndex + 1, wsRef, params, callbacks);
+        setTimeout(() => {
+          tryConnectToWebSocket(urls, currentIndex + 1, wsRef, params, callbacks);
+        }, 100); // 短暂延迟以避免过快重试
       } else {
-        console.error("All WebSocket URLs failed", event);
-        const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
-        if (isHttps) {
-          toast.error(
-            "WebSocket连接失败。这通常是因为：\n" +
-            "• 后端服务器不支持WSS (需要SSL证书)\n" +
-            "• 需要配置反向代理来处理WebSocket连接\n" +
-            "建议联系系统管理员配置SSL证书或代理"
-          );
-        } else {
-          toast.error(ERROR_MESSAGE);
-        }
-        callbacks.onCancel();
+        handleAllUrlsFailed();
       }
     } else {
       callbacks.onComplete();
@@ -188,9 +191,7 @@ function tryConnectToWebSocket(
     clearTimeout(connectionTimeout);
     console.error(`WebSocket error for ${wsUrl}:`, error);
     
-    // 如果还有其他URL可以尝试，不显示错误消息
-    if (currentIndex + 1 >= urls.length) {
-      toast.error(ERROR_MESSAGE);
-    }
+    // WebSocket error事件不会阻止后续的close事件
+    // 所以这里不需要立即重试，让close事件处理重试逻辑
   });
 }

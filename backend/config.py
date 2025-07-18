@@ -23,3 +23,15 @@ DEBUG_DIR = os.environ.get("DEBUG_DIR", "")
 # Set to True when running in production (on the hosted version)
 # Used as a feature flag to enable or disable certain features
 IS_PROD = os.environ.get("IS_PROD", False)
+
+# CORS settings - Security configuration
+# In production, set ALLOWED_ORIGINS to specific domains
+# Example: ALLOWED_ORIGINS=https://example.com,https://app.example.com
+ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000").split(",")
+
+# If running in development mode, allow localhost origins
+if not IS_PROD and os.environ.get("ALLOW_ALL_ORIGINS", "false").lower() == "true":
+    ALLOWED_ORIGINS = ["*"]
+
+# Encryption key for secure storage
+ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY", None)
