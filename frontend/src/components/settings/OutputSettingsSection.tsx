@@ -19,7 +19,7 @@ interface Props {
 function OutputSettingsSection({
   stack,
   setStack,
-  label = "Generating:",
+  label = "生成中：",
   shouldDisableUpdates = false,
 }: Props) {
   return (
@@ -32,7 +32,7 @@ function OutputSettingsSection({
           disabled={shouldDisableUpdates}
         >
           <SelectTrigger className="col-span-2" id="output-settings-js">
-            {stack ? <StackLabel stack={stack} /> : "Select a stack"}
+            {stack ? <StackLabel stack={stack} /> : "选择技术栈"}
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
@@ -42,7 +42,7 @@ function OutputSettingsSection({
                     <StackLabel stack={stack} />
                     {STACK_DESCRIPTIONS[stack].inBeta && (
                       <Badge className="ml-2" variant="secondary">
-                        Beta
+                        测试版
                       </Badge>
                     )}
                   </div>

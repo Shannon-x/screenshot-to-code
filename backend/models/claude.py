@@ -9,6 +9,9 @@ from image_processing.utils import process_image
 from utils import pprint_prompt
 from llm import Completion, Llm
 
+# Re-export from the new stream processor for backward compatibility
+from models.claude_stream_processor import stream_claude_response
+
 
 def convert_openai_messages_to_claude(
     messages: List[ChatCompletionMessageParam],
@@ -56,72 +59,8 @@ def convert_openai_messages_to_claude(
     return system_prompt, claude_messages
 
 
-async def stream_claude_response(
-    messages: List[ChatCompletionMessageParam],
-    api_key: str,
-    callback: Callable[[str], Awaitable[None]],
-    model_name: str,
-) -> Completion:
-    start_time = time.time()
-    client = AsyncAnthropic(api_key=api_key)
-
-    # Base parameters
-    max_tokens = 8192
-    temperature = 0.0
-
-    # Claude 3.7 Sonnet can support higher max tokens
-    if model_name == "claude-3-7-sonnet-20250219":
-        max_tokens = 20000
-
-    # Translate OpenAI messages to Claude messages
-
-    # Convert OpenAI format messages to Claude format
-    system_prompt, claude_messages = convert_openai_messages_to_claude(messages)
-
-    response = ""
-
-    if (
-        model_name == Llm.CLAUDE_4_SONNET_2025_05_14.value
-        or model_name == Llm.CLAUDE_4_OPUS_2025_05_14.value
-    ):
-        print(f"Using {model_name} with thinking")
-        # Thinking is not compatible with temperature
-        async with client.messages.stream(
-            model=model_name,
-            thinking={"type": "enabled", "budget_tokens": 10000},
-            max_tokens=30000,
-            system=system_prompt,
-            messages=claude_messages,  # type: ignore
-        ) as stream:
-            async for event in stream:
-                if event.type == "content_block_delta":
-                    if event.delta.type == "thinking_delta":
-                        pass
-                        # print(event.delta.thinking, end="")
-                    elif event.delta.type == "text_delta":
-                        response += event.delta.text
-                        await callback(event.delta.text)
-
-    else:
-        # Stream Claude response
-        async with client.beta.messages.stream(
-            model=model_name,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            system=system_prompt,
-            messages=claude_messages,  # type: ignore
-            betas=["output-128k-2025-02-19"],
-        ) as stream:
-            async for text in stream.text_stream:
-                response += text
-                await callback(text)
-
-    # Close the Anthropic client
-    await client.close()
-
-    completion_time = time.time() - start_time
-    return {"duration": completion_time, "code": response}
-
+# Original stream_claude_response has been moved to claude_stream_processor.py
+# The function is now imported at the top of this file for backward compatibility
 
 async def stream_claude_response_native(
     system_prompt: str,

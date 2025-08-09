@@ -44,6 +44,13 @@ from openai.types.chat import ChatCompletionMessageParam
 import aiohttp
 import json
 
+# Import the new WebSocket manager
+from websocket_manager import ws_manager, MessageType as WsMessageType
+import logging
+
+# Configure logger
+logger = logging.getLogger(__name__)
+
 # WebSocket message types
 MessageType = Literal[
     "chunk",
@@ -150,16 +157,20 @@ class Pipeline:
 
 
 class WebSocketCommunicator:
-    """Handles WebSocket communication with consistent error handling"""
+    """Handles WebSocket communication using the centralized WebSocket manager"""
 
-    def __init__(self, websocket: WebSocket):
+    def __init__(self, websocket: WebSocket, connection_id: str):
         self.websocket = websocket
+        self.connection_id = connection_id
         self.is_closed = False
 
     async def accept(self) -> None:
-        """Accept the WebSocket connection"""
+        """Accept the WebSocket connection through manager"""
         await self.websocket.accept()
-        print("Incoming websocket connection...")
+        success = await ws_manager.connect(self.websocket, self.connection_id)
+        if not success:
+            raise Exception("Failed to register WebSocket connection")
+        logger.info(f"Incoming websocket connection: {self.connection_id}")
 
     async def send_message(
         self,
@@ -167,59 +178,63 @@ class WebSocketCommunicator:
         value: str,
         variantIndex: int,
     ) -> None:
-        """Send a message to the client with debug logging"""
+        """Send a message to the client using WebSocket manager"""
         # Check if WebSocket is still open before sending
         if self.is_closed:
-            print(f"Attempted to send message to closed WebSocket: {type} (variant {variantIndex})")
+            logger.debug(f"Attempted to send message to closed WebSocket: {type} (variant {variantIndex})")
             return
             
         # Print for debugging on the backend
         if type == "error":
-            print(f"Error (variant {variantIndex}): {value}")
+            logger.error(f"Error (variant {variantIndex}): {value}")
         elif type == "status":
-            print(f"Status (variant {variantIndex}): {value}")
+            logger.info(f"Status (variant {variantIndex}): {value}")
         elif type == "variantComplete":
-            print(f"Variant {variantIndex} complete")
+            logger.info(f"Variant {variantIndex} complete")
         elif type == "variantError":
-            print(f"Variant {variantIndex} error: {value}")
+            logger.error(f"Variant {variantIndex} error: {value}")
 
-        try:
-            await self.websocket.send_json(
-                {"type": type, "value": value, "variantIndex": variantIndex}
-            )
-        except RuntimeError as e:
-            if "close message has been sent" in str(e):
-                print(f"WebSocket already closed, cannot send {type} message")
-                self.is_closed = True
-            else:
-                raise e
+        # Map our message types to WebSocket manager types
+        ws_type_map = {
+            "chunk": WsMessageType.CHUNK,
+            "status": WsMessageType.STATUS,
+            "setCode": WsMessageType.SET_CODE,
+            "error": WsMessageType.ERROR,
+            "variantComplete": WsMessageType.VARIANT_COMPLETE,
+            "variantError": WsMessageType.VARIANT_ERROR,
+            "variantCount": WsMessageType.VARIANT_COUNT,
+        }
+        
+        ws_type = ws_type_map.get(type, WsMessageType.ERROR)
+        success = await ws_manager.send_message(
+            self.connection_id,
+            ws_type,
+            value,
+            variantIndex
+        )
+        
+        if not success:
+            self.is_closed = True
 
     async def throw_error(self, message: str) -> None:
         """Send an error message and close the connection"""
-        print(message)
+        logger.error(message)
         if not self.is_closed:
-            try:
-                await self.websocket.send_json({"type": "error", "value": message})
-                await self.websocket.close(APP_ERROR_WEB_SOCKET_CODE)
-            except Exception as e:
-                print(f"Error while sending error message: {e}")
-            finally:
-                self.is_closed = True
+            await ws_manager.send_error(self.connection_id, message)
+            await ws_manager.disconnect(self.connection_id)
+            self.is_closed = True
 
     async def receive_params(self) -> Dict[str, str]:
         """Receive parameters from the client"""
         params: Dict[str, str] = await self.websocket.receive_json()
-        print("Received params")
+        logger.info("Received params")
         return params
 
     async def close(self) -> None:
-        """Close the WebSocket connection"""
+        """Close the WebSocket connection through manager"""
         if not self.is_closed:
             self.is_closed = True
-            try:
-                await self.websocket.close()
-            except Exception as e:
-                print(f"Error while closing WebSocket: {e}")
+            await ws_manager.disconnect(self.connection_id)
 
 
 @dataclass
@@ -898,8 +913,12 @@ class WebSocketSetupMiddleware(Middleware):
     async def process(
         self, context: PipelineContext, next_func: Callable[[], Awaitable[None]]
     ) -> None:
-        # Create and setup WebSocket communicator
-        context.ws_comm = WebSocketCommunicator(context.websocket)
+        # Generate connection ID
+        import time
+        connection_id = f"{context.websocket.client.host}_{time.time()}"
+        
+        # Create and setup WebSocket communicator with manager
+        context.ws_comm = WebSocketCommunicator(context.websocket, connection_id)
         await context.ws_comm.accept()
 
         try:
@@ -1089,13 +1108,29 @@ async def stream_code(websocket: WebSocket):
     # Get client IP for rate limiting
     from middleware.rate_limit import rate_limiter
     
+    # Debug: Log connection attempt
+    print(f"WebSocket connection attempt from {websocket.client}")
+    print(f"Headers: {dict(websocket.headers)}")
+    
+    # Get real client IP (handle Cloudflare and other proxies)
     client_ip = websocket.client.host if websocket.client else "unknown"
-    forwarded_for = websocket.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        client_ip = forwarded_for.split(",")[0].strip()
+    
+    # Check multiple headers for real IP (Cloudflare uses CF-Connecting-IP)
+    for header in ["CF-Connecting-IP", "X-Real-IP", "X-Forwarded-For"]:
+        real_ip = websocket.headers.get(header)
+        if real_ip:
+            if header == "X-Forwarded-For":
+                # Take the first IP if there are multiple
+                client_ip = real_ip.split(",")[0].strip()
+            else:
+                client_ip = real_ip
+            break
+    
+    print(f"Detected client IP: {client_ip}")
     
     # Check WebSocket rate limit
     if not rate_limiter.check_websocket_limit(client_ip):
+        print(f"Rate limit exceeded for IP: {client_ip}")
         await websocket.close(code=1008, reason="Too many connections")
         return
     

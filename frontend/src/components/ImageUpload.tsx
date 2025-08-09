@@ -4,6 +4,7 @@ import { toast } from "react-hot-toast";
 import { URLS } from "../urls";
 import ScreenRecorder from "./recording/ScreenRecorder";
 import { ScreenRecorderState } from "../types";
+import { useLocale } from "../hooks/useLocale";
 
 const baseStyle = {
   flex: 1,
@@ -60,9 +61,9 @@ interface Props {
 
 function ImageUpload({ setReferenceImages }: Props) {
   const [files, setFiles] = useState<FileWithPreview[]>([]);
-  // TODO: Switch to Zustand
   const [screenRecorderState, setScreenRecorderState] =
     useState<ScreenRecorderState>(ScreenRecorderState.INITIAL);
+  const { t } = useLocale();
 
   const { getRootProps, getInputProps, isFocused, isDragAccept, isDragReject } =
     useDropzone({
@@ -101,52 +102,25 @@ function ImageUpload({ setReferenceImages }: Props) {
             }
           })
           .catch((error) => {
-            toast.error("Error reading files" + error);
+            toast.error(t("errors.imageUploadFailed") + ": " + error);
             console.error("Error reading files:", error);
           });
       },
       onDropRejected: (rejectedFiles) => {
-        toast.error(rejectedFiles[0].errors[0].message);
+        const error = rejectedFiles[0].errors[0];
+        if (error.code === "file-too-large") {
+          toast.error(t("errors.imageTooLarge"));
+        } else if (error.code === "file-invalid-type") {
+          toast.error(t("errors.invalidImageFormat"));
+        } else {
+          toast.error(error.message);
+        }
       },
     });
 
-  // const pasteEvent = useCallback(
-  //   (event: ClipboardEvent) => {
-  //     const clipboardData = event.clipboardData;
-  //     if (!clipboardData) return;
-
-  //     const items = clipboardData.items;
-  //     const files = [];
-  //     for (let i = 0; i < items.length; i++) {
-  //       const file = items[i].getAsFile();
-  //       if (file && file.type.startsWith("image/")) {
-  //         files.push(file);
-  //       }
-  //     }
-
-  //     // Convert images to data URLs and set the prompt images state
-  //     Promise.all(files.map((file) => fileToDataURL(file)))
-  //       .then((dataUrls) => {
-  //         if (dataUrls.length > 0) {
-  //           setReferenceImages(dataUrls.map((dataUrl) => dataUrl as string));
-  //         }
-  //       })
-  //       .catch((error) => {
-  //         // TODO: Display error to user
-  //         console.error("Error reading files:", error);
-  //       });
-  //   },
-  //   [setReferenceImages]
-  // );
-
-  // TODO: Make sure we don't listen to paste events in text input components
-  // useEffect(() => {
-  //   window.addEventListener("paste", pasteEvent);
-  // }, [pasteEvent]);
-
   useEffect(() => {
     return () => files.forEach((file) => URL.revokeObjectURL(file.preview));
-  }, [files]); // Added files as a dependency
+  }, [files]);
 
   const style = useMemo(
     () => ({
@@ -164,22 +138,23 @@ function ImageUpload({ setReferenceImages }: Props) {
         /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
         <div {...getRootProps({ style: style as any })}>
           <input {...getInputProps()} className="file-input" />
-          <p className="text-slate-700 text-lg">
-            Drag & drop a screenshot here, <br />
-            or click to upload
+          <p className="text-slate-700 text-lg text-center">
+            {t("main.dragDropHint")}
+          </p>
+          <p className="text-slate-600 text-sm mt-2">
+            {t("main.pasteHint")}
           </p>
         </div>
       )}
       {screenRecorderState === ScreenRecorderState.INITIAL && (
         <div className="text-center text-sm text-slate-800 mt-4">
-          Upload a screen recording (.mp4, .mov) or record your screen to clone
-          a whole app (experimental).{" "}
+          支持上传屏幕录像（.mp4、.mov）或录制屏幕来克隆整个应用（实验性功能）。{" "}
           <a
             className="underline"
             href={URLS["intro-to-video"]}
             target="_blank"
           >
-            Learn more.
+            了解更多
           </a>
         </div>
       )}

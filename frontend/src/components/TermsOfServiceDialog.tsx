@@ -52,13 +52,13 @@ const TermsOfServiceDialog: React.FC<{
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle className="mb-2 text-xl">
-            Enter your email to get started
+            输入您的邮箱以开始使用
           </AlertDialogTitle>
         </AlertDialogHeader>
 
         <div className="mb-2">
           <Input
-            placeholder="Email"
+            placeholder="邮箱"
             value={email}
             onChange={(e) => {
               setEmail(e.target.value);
@@ -67,27 +67,26 @@ const TermsOfServiceDialog: React.FC<{
         </div>
         <div className="flex flex-col space-y-3 text-sm">
           <p>
-            By providing your email, you consent to receiving occasional product
-            updates, and you accept the{" "}
+            通过提供您的邮箱，您同意接收偶尔的产品更新，并接受{" "}
             <a
               href="https://a.picoapps.xyz/camera-write"
               target="_blank"
               className="underline"
             >
-              terms of service
+              服务条款
             </a>
             .{" "}
           </p>
 
           <p>
             {" "}
-            Prefer to run it yourself locally? This project is open source.{" "}
+            更愿意在本地运行？这个项目是开源的。{" "}
             <a
               href="https://github.com/abi/screenshot-to-code"
               target="_blank"
               className="underline"
             >
-              Download the code and get started on Github.
+              在Github下载代码并开始使用。
             </a>
           </p>
         </div>
@@ -97,13 +96,13 @@ const TermsOfServiceDialog: React.FC<{
             onClick={(e) => {
               if (!email.trim() || !email.trim().includes("@")) {
                 e.preventDefault();
-                toast.error("Please enter your email");
+                toast.error("请输入您的邮箱");
               } else {
                 onSubscribe();
               }
             }}
           >
-            Agree & Continue
+            同意并继续
           </AlertDialogAction>
         </AlertDialogFooter>
 
@@ -125,8 +124,7 @@ const TermsOfServiceDialog: React.FC<{
             ))}
           </div>
           <div className="text-gray-500 text-xs mt-4 text-center">
-            Designers and engineers from these organizations use Screenshot to
-            Code to build interfaces faster.
+            这些组织的设计师和工程师使用截图转代码来更快地构建界面。
           </div>
         </div>
       </AlertDialogContent>

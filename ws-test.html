@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket连接测试</h1>
+    <div id="status">未连接</div>
+    <div id="log" style="border: 1px solid #ccc; height: 400px; overflow-y: scroll; padding: 10px; margin-top: 20px;"></div>
+    
+    <script>
+        const log = (msg) => {
+            const logDiv = document.getElementById('log');
+            logDiv.innerHTML += new Date().toISOString() + ': ' + msg + '<br>';
+            logDiv.scrollTop = logDiv.scrollHeight;
+        };
+        
+        const testWebSocket = () => {
+            const wsUrl = 'wss://code.yun7.de/generate-code';
+            log('尝试连接到: ' + wsUrl);
+            
+            try {
+                const ws = new WebSocket(wsUrl);
+                
+                ws.onopen = () => {
+                    log('WebSocket连接成功！');
+                    document.getElementById('status').textContent = '已连接';
+                    document.getElementById('status').style.color = 'green';
+                    
+                    // 发送测试消息
+                    const testData = {
+                        model: "claude-3-5-sonnet-20241022",
+                        generationType: "create"
+                    };
+                    ws.send(JSON.stringify(testData));
+                    log('发送测试数据: ' + JSON.stringify(testData));
+                };
+                
+                ws.onerror = (error) => {
+                    log('WebSocket错误: ' + error);
+                    console.error('WebSocket error:', error);
+                };
+                
+                ws.onclose = (event) => {
+                    log('WebSocket关闭 - 代码: ' + event.code + ', 原因: ' + event.reason);
+                    document.getElementById('status').textContent = '连接关闭';
+                    document.getElementById('status').style.color = 'red';
+                };
+                
+                ws.onmessage = (event) => {
+                    log('收到消息: ' + event.data);
+                };
+                
+            } catch (e) {
+                log('创建WebSocket时出错: ' + e.message);
+            }
+        };
+        
+        // 页面加载后自动测试
+        window.onload = () => {
+            log('页面加载完成，开始WebSocket测试...');
+            testWebSocket();
+        };
+    </script>
+</body>
+</html>

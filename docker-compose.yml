@@ -1,6 +1,9 @@
 version: '3.9'
 
 services:
+  # 移除内部Redis服务，使用外部Redis
+  # redis服务已注释掉，因为使用外部1Panel-redis-Khtj
+
   backend:
     build: 
       context: ./backend
@@ -9,10 +12,10 @@ services:
     env_file:
       - .env
     
-    # or 
-    # environment:
-      #- BACKEND_PORT=7001   # if you change the port, make sure to also change the VITE_WS_BACKEND_URL at frontend/.env.local
-      # - OPENAI_API_KEY=your_openai_api_key
+    environment:
+      # 配置外部Redis连接
+      - REDIS_URL=redis://:redis_5Gk3ZM@1Panel-redis-Khtj:6379
+      - BACKEND_PORT=${BACKEND_PORT:-7001}
     
     # 内部暴露端口给其他容器
     expose:
@@ -21,9 +24,12 @@ services:
     # 设置容器内的服务器监听所有接口
     command: poetry run uvicorn main:app --host 0.0.0.0 --port ${BACKEND_PORT:-7001}
     
-    # 添加网络
+    # 添加网络 - 使用1panel-network以访问外部Redis
     networks:
       - app-network
+      - 1panel-network
+    
+    # 移除对内部redis的依赖
 
   frontend:
     build:
@@ -68,3 +74,8 @@ services:
 networks:
   app-network:
     driver: bridge
+  # 使用外部的1panel-network网络
+  1panel-network:
+    external: true
+
+# 移除redis-data卷，因为使用外部Redis

@@ -6,6 +6,9 @@ from google import genai
 from google.genai import types
 from llm import Completion, Llm
 
+# Re-export from the new stream processor for backward compatibility
+from models.gemini_stream_processor import stream_gemini_response
+
 
 def extract_image_from_messages(
     messages: List[ChatCompletionMessageParam],
@@ -36,65 +39,5 @@ def extract_image_from_messages(
     raise ValueError("No image found in messages")
 
 
-async def stream_gemini_response(
-    messages: List[ChatCompletionMessageParam],
-    api_key: str,
-    callback: Callable[[str], Awaitable[None]],
-    model_name: str,
-) -> Completion:
-    start_time = time.time()
-
-    # Get image data from messages
-    image_data = extract_image_from_messages(messages)
-
-    client = genai.Client(api_key=api_key)
-    full_response = ""
-
-    if model_name == Llm.GEMINI_2_5_FLASH_PREVIEW_05_20.value:
-        # Gemini 2.5 Flash supports thinking budgets
-        config = types.GenerateContentConfig(
-            temperature=0,
-            max_output_tokens=20000,
-            thinking_config=types.ThinkingConfig(
-                thinking_budget=5000, include_thoughts=True
-            ),
-        )
-    elif model_name == Llm.GEMINI_2_5_PRO_PREVIEW_05_06.value:
-        config = types.GenerateContentConfig(
-            temperature=0,
-            max_output_tokens=20000,
-            thinking_config=types.ThinkingConfig(include_thoughts=True),
-        )
-    else:
-        # TODO: Fix output tokens here
-        config = types.GenerateContentConfig(
-            temperature=0,
-            max_output_tokens=8000,
-        )
-
-    async for chunk in await client.aio.models.generate_content_stream(
-        model=model_name,
-        contents={
-            "parts": [
-                {"text": messages[0]["content"]},  # type: ignore
-                types.Part.from_bytes(
-                    data=base64.b64decode(image_data["data"]),
-                    mime_type=image_data["mime_type"],
-                ),
-            ]
-        },
-        config=config,
-    ):
-        if chunk.candidates and len(chunk.candidates) > 0:
-            for part in chunk.candidates[0].content.parts:
-                if not part.text:
-                    continue
-                elif part.thought:
-                    print("Thought summary:")
-                    print(part.text)
-                else:
-                    full_response += part.text
-                    await callback(part.text)
-
-    completion_time = time.time() - start_time
-    return {"duration": completion_time, "code": full_response}
+# Original stream_gemini_response has been moved to gemini_stream_processor.py
+# The function is now imported at the top of this file for backward compatibility

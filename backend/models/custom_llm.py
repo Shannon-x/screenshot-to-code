@@ -82,20 +82,23 @@ async def call_custom_llm_api(
                     
                     formatted_messages.append({"role": "user", "content": content_parts})
                 else:
-                    # OpenAI-like format: combine text and describe images
-                    text_parts = []
-                    image_parts_count = 0
+                    # OpenAI-like format: preserve image URLs
+                    content_parts = []
                     for content_part in msg["content"]:
                         if content_part["type"] == "text":
-                            text_parts.append(content_part["text"])
+                            content_parts.append({
+                                "type": "text",
+                                "text": content_part["text"]
+                            })
                         elif content_part["type"] == "image_url":
-                            image_parts_count += 1
-
-                    combined_text = "\n".join(text_parts)
-                    if image_parts_count > 0:
-                        combined_text += f"\n\n[Image data for {image_parts_count} image(s) would be processed here if custom API supports it. This is a placeholder.]"
-
-                    formatted_messages.append({"role": "user", "content": combined_text})
+                            # Keep the image URL for OpenAI-compatible APIs
+                            content_parts.append({
+                                "type": "image_url",
+                                "image_url": content_part["image_url"]
+                            })
+                            print(f"[DEBUG] Added image URL to request")
+                    
+                    formatted_messages.append({"role": "user", "content": content_parts})
             else:
                 # Ensure content is string
                 content_str = msg["content"] if isinstance(msg["content"], str) else str(msg["content"])

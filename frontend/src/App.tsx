@@ -409,7 +409,7 @@ function App() {
         <div className="flex grow flex-col gap-y-2 overflow-y-auto border-r border-gray-200 bg-white px-6 dark:bg-zinc-950 dark:text-white">
           {/* Header with access to settings */}
           <div className="flex items-center justify-between mt-10 mb-2">
-            <h1 className="text-2xl ">Screenshot to Code</h1>
+            <h1 className="text-2xl ">截图转代码</h1>
             <SettingsDialog settings={settings} setSettings={setSettings} />
           </div>
 

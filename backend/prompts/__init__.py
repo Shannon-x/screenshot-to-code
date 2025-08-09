@@ -7,6 +7,16 @@ from prompts.imported_code_prompts import IMPORTED_CODE_SYSTEM_PROMPTS
 from prompts.screenshot_system_prompts import SYSTEM_PROMPTS
 from prompts.text_prompts import SYSTEM_PROMPTS as TEXT_SYSTEM_PROMPTS
 from prompts.types import Stack
+from prompts.enhanced_prompts import (
+    get_enhanced_system_prompt,
+    analyze_image_complexity,
+    get_dynamic_temperature,
+    get_variant_count,
+    BASE_GENERATION_RULES,
+    MODERN_UI_GUIDELINES,
+    RESPONSIVE_DESIGN_RULES,
+    ENHANCED_IMAGE_GUIDELINES
+)
 from video.utils import assemble_claude_prompt_video
 
 
@@ -28,7 +38,7 @@ async def create_prompt(
     # If this generation started off with imported code, we need to assemble the prompt differently
     if params.get("isImportedFromCode"):
         original_imported_code = params["history"][0]
-        prompt_messages = assemble_imported_code_prompt(original_imported_code, stack)
+        prompt_messages = assemble_imported_code_prompt(original_imported_code, stack, use_enhanced_prompts=True)
         for index, text in enumerate(params["history"][1:]):
             if index % 2 == 0:
                 message: ChatCompletionMessageParam = {
@@ -87,9 +97,13 @@ async def create_prompt(
 
 
 def assemble_imported_code_prompt(
-    code: str, stack: Stack
+    code: str, stack: Stack, use_enhanced_prompts: bool = True
 ) -> list[ChatCompletionMessageParam]:
-    system_content = IMPORTED_CODE_SYSTEM_PROMPTS[stack]
+    if use_enhanced_prompts:
+        # Get enhanced prompt for imported code
+        system_content = get_enhanced_system_prompt(stack, "standard", is_imported_code=True)
+    else:
+        system_content = IMPORTED_CODE_SYSTEM_PROMPTS[stack]
 
     user_content = (
         "Here is the code of the app: " + code
@@ -110,8 +124,20 @@ def assemble_prompt(
     image_data_url: str,
     stack: Stack,
     result_image_data_url: Union[str, None] = None,
+    use_enhanced_prompts: bool = True,
 ) -> list[ChatCompletionMessageParam]:
-    system_content = SYSTEM_PROMPTS[stack]
+    # Analyze image complexity for better prompt customization
+    complexity_level = "standard"  # Default
+    if use_enhanced_prompts and image_data_url:
+        complexity_level = analyze_image_complexity(image_data_url)
+    
+    # Get appropriate system prompt
+    if use_enhanced_prompts:
+        # Get the enhanced system prompt which already includes the base prompt
+        system_content = get_enhanced_system_prompt(stack, complexity_level)
+    else:
+        system_content = SYSTEM_PROMPTS[stack]
+    
     user_prompt = USER_PROMPT if stack != "svg" else SVG_USER_PROMPT
 
     user_content: list[ChatCompletionContentPartParam] = [
@@ -149,9 +175,13 @@ def assemble_prompt(
 def assemble_text_prompt(
     text_prompt: str,
     stack: Stack,
+    use_enhanced_prompts: bool = True,
 ) -> list[ChatCompletionMessageParam]:
-
-    system_content = TEXT_SYSTEM_PROMPTS[stack]
+    if use_enhanced_prompts:
+        # Get enhanced prompt for text-based generation
+        system_content = get_enhanced_system_prompt(stack, "standard", is_text_mode=True)
+    else:
+        system_content = TEXT_SYSTEM_PROMPTS[stack]
 
     return [
         {

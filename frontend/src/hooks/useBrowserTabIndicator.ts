@@ -1,11 +1,11 @@
 import { useEffect } from "react";
 
 const CODING_SETTINGS = {
-  title: "Coding...",
+  title: "编码中...",
   favicon: "/favicon/coding.png",
 };
 const DEFAULT_SETTINGS = {
-  title: "Screenshot to Code",
+  title: "截图转代码",
   favicon: "/favicon/main.png",
 };
 

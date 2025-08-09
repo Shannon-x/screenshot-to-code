@@ -22,6 +22,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "../ui/accordion";
+import { useLocale } from "../../hooks/useLocale";
 
 interface Props {
   settings: Settings;
@@ -29,6 +30,8 @@ interface Props {
 }
 
 function SettingsDialog({ settings, setSettings }: Props) {
+  const { t } = useLocale();
+  
   const handleThemeChange = (theme: EditorTheme) => {
     setSettings((s) => ({
       ...s,
@@ -41,16 +44,17 @@ function SettingsDialog({ settings, setSettings }: Props) {
       <DialogTrigger>
         <FaCog />
       </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="mb-4">Settings</DialogTitle>
+      <DialogContent className="flex flex-col">
+        <DialogHeader className="flex-shrink-0">
+          <DialogTitle>{t('settings.title')}</DialogTitle>
         </DialogHeader>
 
-        <div className="flex items-center space-x-2">
+        <div className="overflow-y-auto flex-1 mt-4 pr-2" style={{ maxHeight: 'calc(90vh - 180px)' }}>
+          <div className="flex items-center space-x-2">
           <Label htmlFor="image-generation">
-            <div>DALL-E Placeholder Image Generation</div>
+            <div>{t('settings.enableImageGeneration')}</div>
             <div className="font-light mt-2 text-xs">
-              More fun with it but if you want to save money, turn it off.
+              使用DALL-E生成占位图片，更有趣但会增加成本
             </div>
           </Label>
           <Switch
@@ -63,20 +67,19 @@ function SettingsDialog({ settings, setSettings }: Props) {
               }))
             }
           />
-        </div>
-        <div className="flex flex-col space-y-6">
+          </div>
+          <div className="flex flex-col space-y-6">
           <div>
             <Label htmlFor="openai-api-key">
-              <div>OpenAI API key</div>
+              <div>{t('settings.openAiApiKey')}</div>
               <div className="font-light mt-1 mb-2 text-xs leading-relaxed">
-                Only stored in your browser. Never stored on servers. Overrides
-                your .env config.
+                仅保存在您的浏览器中，不会存储在服务器上。会覆盖您的 .env 配置
               </div>
             </Label>
 
             <Input
               id="openai-api-key"
-              placeholder="OpenAI API key"
+              placeholder={t('settings.openAiApiKeyPlaceholder')}
               value={settings.openAiApiKey || ""}
               onChange={(e) =>
                 setSettings((s) => ({
@@ -90,15 +93,15 @@ function SettingsDialog({ settings, setSettings }: Props) {
           {!IS_RUNNING_ON_CLOUD && (
             <div>
               <Label htmlFor="openai-api-key">
-                <div>OpenAI Base URL (optional)</div>
+                <div>{t('settings.openAiBaseUrl')}</div>
                 <div className="font-light mt-2 leading-relaxed">
-                  Replace with a proxy URL if you don't want to use the default.
+                  如果您不想使用默认地址，可以替换为代理URL
                 </div>
               </Label>
 
               <Input
                 id="openai-base-url"
-                placeholder="OpenAI Base URL"
+                placeholder={t('settings.openAiBaseUrlPlaceholder')}
                 value={settings.openAiBaseURL || ""}
                 onChange={(e) =>
                   setSettings((s) => ({
@@ -112,16 +115,15 @@ function SettingsDialog({ settings, setSettings }: Props) {
 
           <div>
             <Label htmlFor="anthropic-api-key">
-              <div>Anthropic API key</div>
+              <div>{t('settings.anthropicApiKey')}</div>
               <div className="font-light mt-1 text-xs leading-relaxed">
-                Only stored in your browser. Never stored on servers. Overrides
-                your .env config.
+                仅保存在您的浏览器中，不会存储在服务器上。会覆盖您的 .env 配置
               </div>
             </Label>
 
             <Input
               id="anthropic-api-key"
-              placeholder="Anthropic API key"
+              placeholder={t('settings.anthropicApiKeyPlaceholder')}
               value={settings.anthropicApiKey || ""}
               onChange={(e) =>
                 setSettings((s) => ({
@@ -134,13 +136,13 @@ function SettingsDialog({ settings, setSettings }: Props) {
 
           <Accordion type="single" collapsible className="w-full">
             <AccordionItem value="custom-model">
-              <AccordionTrigger>Custom AI Model</AccordionTrigger>
+              <AccordionTrigger>{t('settings.customModelSettings')}</AccordionTrigger>
               <AccordionContent className="space-y-4">
                 <div className="flex items-center space-x-2">
                   <Label htmlFor="use-custom-model">
-                    <div>Use Custom AI Model</div>
+                    <div>{t('settings.useCustomModel')}</div>
                     <div className="font-light mt-2 text-xs">
-                      Use your own AI model API instead of the built-in models.
+                      使用您自己的AI模型API而不是内置模型
                     </div>
                   </Label>
                   <Switch
@@ -165,14 +167,14 @@ function SettingsDialog({ settings, setSettings }: Props) {
                   <div className="space-y-4 p-4 border rounded-lg bg-gray-50 dark:bg-gray-800">
                     <div>
                       <Label htmlFor="custom-model-name">
-                        <div>Model Name</div>
+                        <div>模型名称</div>
                         <div className="font-light mt-1 text-xs">
-                          Display name for the custom model.
+                          自定义模型的显示名称
                         </div>
                       </Label>
                       <Input
                         id="custom-model-name"
-                        placeholder="e.g., Custom GPT-4"
+                        placeholder="例如：自定义 GPT-4"
                         value={settings.customModel.name || ""}
                         onChange={(e) =>
                           setSettings((s) => ({
@@ -188,14 +190,14 @@ function SettingsDialog({ settings, setSettings }: Props) {
 
                     <div>
                       <Label htmlFor="custom-model-id">
-                        <div>Model ID</div>
+                        <div>{t('settings.customModelId')}</div>
                         <div className="font-light mt-1 text-xs">
-                          Identifier of the model to be called.
+                          要调用的模型标识符
                         </div>
                       </Label>
                       <Input
                         id="custom-model-id"
-                        placeholder="e.g., gpt-4o, claude-3-5-sonnet"
+                        placeholder={t('settings.customModelIdPlaceholder')}
                         value={settings.customModel.id || ""}
                         onChange={(e) =>
                           setSettings((s) => ({
@@ -211,14 +213,14 @@ function SettingsDialog({ settings, setSettings }: Props) {
 
                     <div>
                       <Label htmlFor="custom-model-service-url">
-                        <div>Service URL</div>
+                        <div>{t('settings.customModelServiceUrl')}</div>
                         <div className="font-light mt-1 text-xs">
-                          Full API endpoint address for the model service.
+                          模型服务的完整API端点地址
                         </div>
                       </Label>
                       <Input
                         id="custom-model-service-url"
-                        placeholder="e.g., https://api.openai.com/v1/chat/completions"
+                        placeholder={t('settings.customModelServiceUrlPlaceholder')}
                         value={settings.customModel.serviceUrl || ""}
                         onChange={(e) =>
                           setSettings((s) => ({
@@ -234,15 +236,15 @@ function SettingsDialog({ settings, setSettings }: Props) {
 
                     <div>
                       <Label htmlFor="custom-model-api-key">
-                        <div>API Key</div>
+                        <div>{t('settings.customModelApiKey')}</div>
                         <div className="font-light mt-1 text-xs">
-                          API key required to access the model service.
+                          访问模型服务所需的API密钥
                         </div>
                       </Label>
                       <Input
                         id="custom-model-api-key"
                         type="password"
-                        placeholder="Enter API Key"
+                        placeholder="输入API密钥"
                         value={settings.customModel.apiKey || ""}
                         onChange={(e) =>
                           setSettings((s) => ({
@@ -263,18 +265,17 @@ function SettingsDialog({ settings, setSettings }: Props) {
 
           <Accordion type="single" collapsible className="w-full">
             <AccordionItem value="item-1">
-              <AccordionTrigger>Screenshot by URL Config</AccordionTrigger>
+              <AccordionTrigger>截图URL配置</AccordionTrigger>
               <AccordionContent>
                 <Label htmlFor="screenshot-one-api-key">
                   <div className="leading-normal font-normal text-xs">
-                    If you want to use URLs directly instead of taking the
-                    screenshot yourself, add a ScreenshotOne API key.{" "}
+                    如果您想直接使用URL而不是自己截图，请添加ScreenshotOne API密钥。{" "}
                     <a
                       href="https://screenshotone.com?via=screenshot-to-code"
                       className="underline"
                       target="_blank"
                     >
-                      Get 100 screenshots/mo for free.
+                      免费获得100张截图/月
                     </a>
                   </div>
                 </Label>
@@ -282,7 +283,7 @@ function SettingsDialog({ settings, setSettings }: Props) {
                 <Input
                   id="screenshot-one-api-key"
                   className="mt-2"
-                  placeholder="ScreenshotOne API key"
+                  placeholder={t('settings.screenshotOneApiKey')}
                   value={settings.screenshotOneApiKey || ""}
                   onChange={(e) =>
                     setSettings((s) => ({
@@ -297,11 +298,11 @@ function SettingsDialog({ settings, setSettings }: Props) {
 
           <Accordion type="single" collapsible className="w-full">
             <AccordionItem value="item-1">
-              <AccordionTrigger>Theme Settings</AccordionTrigger>
+              <AccordionTrigger>主题设置</AccordionTrigger>
               <AccordionContent className="space-y-4 flex flex-col">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="app-theme">
-                    <div>App Theme</div>
+                    <div>应用主题</div>
                   </Label>
                   <div>
                     <button
@@ -316,14 +317,14 @@ function SettingsDialog({ settings, setSettings }: Props) {
                           ?.classList.toggle("dark"); // enable dark mode for upload container
                       }}
                     >
-                      Toggle dark mode
+                      切换深色模式
                     </button>
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
                   <Label htmlFor="editor-theme">
                     <div>
-                      Code Editor Theme - requires page refresh to update
+                      代码编辑器主题 - 需要刷新页面才能更新
                     </div>
                   </Label>
                   <div>
@@ -347,10 +348,11 @@ function SettingsDialog({ settings, setSettings }: Props) {
               </AccordionContent>
             </AccordionItem>
           </Accordion>
+          </div>
         </div>
 
-        <DialogFooter>
-          <DialogClose>Save</DialogClose>
+        <DialogFooter className="flex-shrink-0 mt-4 pt-4 border-t">
+          <DialogClose>{t('common.save')}</DialogClose>
         </DialogFooter>
       </DialogContent>
     </Dialog>

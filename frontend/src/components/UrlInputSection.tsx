@@ -16,14 +16,14 @@ export function UrlInputSection({ doCreate, screenshotOneApiKey }: Props) {
   async function takeScreenshot() {
     if (!screenshotOneApiKey) {
       toast.error(
-        "Please add a ScreenshotOne API key in the Settings dialog. This is optional - you can also drag/drop and upload images directly.",
+        "请在设置对话框中添加ScreenshotOne API密钥。这是可选的 - 您也可以直接拖放/上传图片。",
         { duration: 8000 }
       );
       return;
     }
 
     if (!referenceUrl) {
-      toast.error("Please enter a URL");
+      toast.error("请输入URL");
       return;
     }
 
@@ -42,7 +42,7 @@ export function UrlInputSection({ doCreate, screenshotOneApiKey }: Props) {
         });
 
         if (!response.ok) {
-          throw new Error("Failed to capture screenshot");
+          throw new Error("截图失败");
         }
 
         const res = await response.json();
@@ -50,7 +50,7 @@ export function UrlInputSection({ doCreate, screenshotOneApiKey }: Props) {
       } catch (error) {
         console.error(error);
         toast.error(
-          "Failed to capture screenshot. Look at the console and your backend logs for more details."
+          "截图失败。请查看控制台和后端日志以获取更多详细信息。"
         );
       } finally {
         setIsLoading(false);
@@ -60,9 +60,9 @@ export function UrlInputSection({ doCreate, screenshotOneApiKey }: Props) {
 
   return (
     <div className="max-w-[90%] min-w-[40%] gap-y-2 flex flex-col">
-      <div className="text-gray-500 text-sm">Or screenshot a URL...</div>
+      <div className="text-gray-500 text-sm">或截取URL的截图...</div>
       <Input
-        placeholder="Enter URL"
+        placeholder="输入URL"
         onChange={(e) => setReferenceUrl(e.target.value)}
         value={referenceUrl}
         onKeyDown={(e) => {
@@ -76,7 +76,7 @@ export function UrlInputSection({ doCreate, screenshotOneApiKey }: Props) {
         disabled={isLoading}
         className="bg-slate-400 capture-btn"
       >
-        {isLoading ? "Capturing..." : "Capture"}
+        {isLoading ? "截取中..." : "截取"}
       </Button>
     </div>
   );

@@ -85,8 +85,7 @@ function Sidebar({
               className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700
             p-2 text-xs mb-4 mt-1"
             >
-              Code generation from videos can take 3-4 minutes. We do multiple
-              passes to get the best result. Please be patient.
+              代码从视频生成可能需要3-4分钟。我们会进行多次处理以获得最佳结果。请耐心等待。
             </div>
           )}
 
@@ -97,7 +96,7 @@ function Sidebar({
               onClick={cancelCodeGeneration}
               className="w-full dark:text-white dark:bg-gray-700"
             >
-              Cancel All Generations
+              取消所有生成
             </Button>
           </div>
         </div>
@@ -108,7 +107,7 @@ function Sidebar({
         <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-2">
           <div className="text-red-800 text-sm">
             <div className="font-medium mb-1">
-              This option failed to generate because
+              此选项无法生成，原因是
             </div>
             {selectedVariantErrorMessage && (
               <div className="mb-2">
@@ -122,12 +121,12 @@ function Sidebar({
                     onClick={() => setIsErrorExpanded(!isErrorExpanded)}
                     className="text-red-600 text-xs underline mt-1 hover:text-red-800"
                   >
-                    {isErrorExpanded ? "Show less" : "Show more"}
+                    {isErrorExpanded ? "显示更少" : "显示更多"}
                   </button>
                 )}
               </div>
             )}
-            <div>Switch to another option above to make updates.</div>
+            <div>切换到上面的其他选项以进行更新。</div>
           </div>
         </div>
       )}
@@ -139,7 +138,7 @@ function Sidebar({
             <div className="grid w-full gap-2">
               <Textarea
                 ref={textareaRef}
-                placeholder="Tell the AI what to change..."
+                placeholder="告诉AI你想要修改什么..."
                 onChange={(e) => setUpdateInstruction(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
@@ -152,7 +151,7 @@ function Sidebar({
                 onClick={() => doUpdate(updateInstruction)}
                 className="dark:text-white dark:bg-gray-700 update-btn"
               >
-                Update <KeyboardShortcutBadge letter="enter" />
+                更新 <KeyboardShortcutBadge letter="enter" />
               </Button>
             </div>
             <div className="flex items-center justify-end gap-x-2 mt-2">
@@ -160,7 +159,7 @@ function Sidebar({
                 onClick={regenerate}
                 className="flex items-center gap-x-2 dark:text-white dark:bg-gray-700 regenerate-btn"
               >
-                🔄 Regenerate
+                🔄 重新生成
               </Button>
               {showSelectAndEditFeature && <SelectAndEditModeToggleButton />}
             </div>
@@ -197,7 +196,7 @@ function Sidebar({
               )}
             </div>
             <div className="text-gray-400 uppercase text-sm text-center mt-1">
-              {inputMode === "video" ? "Original Video" : "Original Screenshot"}
+              {inputMode === "video" ? "原始视频" : "原始截图"}
             </div>
           </div>
         )}

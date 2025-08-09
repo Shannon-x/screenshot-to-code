@@ -31,14 +31,14 @@ function RunEvalsPage() {
 
   useEffect(() => {
     return () => {
-      document.title = "Screenshot to Code";
+      document.title = "截图转代码";
     };
   }, []);
 
   const runEvals = async () => {
     try {
       setIsRunning(true);
-      document.title = "Running Evals...";
+      document.title = "运行评估中...";
 
       const response = await fetch(`${HTTP_BACKEND_URL}/run_evals`, {
         method: "POST",
@@ -53,18 +53,18 @@ function RunEvalsPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to run evals");
+        throw new Error("运行评估失败");
       }
 
       const outputFiles = await response.json();
       console.log("Generated files:", outputFiles);
 
-      document.title = "✓ Evals Complete";
+      document.title = "✓ 评估完成";
     } catch (error) {
       console.error("Error running evals:", error);
-      document.title = "❌ Eval Error";
+      document.title = "❌ 评估错误";
       setTimeout(() => {
-        document.title = "Screenshot to Code";
+        document.title = "截图转代码";
       }, 5000);
     } finally {
       setIsRunning(false);
