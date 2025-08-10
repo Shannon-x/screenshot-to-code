@@ -54,21 +54,21 @@ class GeminiStreamProcessor(BaseStreamProcessor):
             # Gemini 2.5 Flash supports thinking budgets
             config = types.GenerateContentConfig(
                 temperature=base_config.get("temperature", 0),
-                max_output_tokens=base_config.get("max_tokens", 20000),
+                max_output_tokens=base_config.get("max_tokens", 30000),  # Increased from 20000
                 thinking_config=types.ThinkingConfig(
-                    thinking_budget=5000, include_thoughts=True
+                    thinking_budget=10000, include_thoughts=True  # Increased thinking budget
                 ),
             )
         elif model_name == Llm.GEMINI_2_5_PRO_PREVIEW_05_06.value:
             config = types.GenerateContentConfig(
                 temperature=base_config.get("temperature", 0),
-                max_output_tokens=base_config.get("max_tokens", 20000),
+                max_output_tokens=base_config.get("max_tokens", 30000),  # Increased from 20000
                 thinking_config=types.ThinkingConfig(include_thoughts=True),
             )
         else:
             config = types.GenerateContentConfig(
                 temperature=base_config.get("temperature", 0),
-                max_output_tokens=base_config.get("max_tokens", 8000),
+                max_output_tokens=base_config.get("max_tokens", 20000),  # Increased from 8000
             )
         
         return {

@@ -50,7 +50,7 @@ class WebSocketManager:
     - Heartbeat mechanism
     """
     
-    def __init__(self, max_connections: int = 100, heartbeat_interval: int = 30):
+    def __init__(self, max_connections: int = 100, heartbeat_interval: int = 60):  # Increased heartbeat interval
         self.connections: Dict[str, WebSocketConnection] = {}
         self.max_connections = max_connections
         self.heartbeat_interval = heartbeat_interval
@@ -175,9 +175,17 @@ class WebSocketManager:
         }
         
         try:
-            await connection.websocket.send_json(message)
+            # Add timeout to prevent indefinite blocking
+            await asyncio.wait_for(
+                connection.websocket.send_json(message),
+                timeout=10.0  # 10 second timeout for sending
+            )
             connection.update_activity()
             return True
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout sending message to {connection_id}")
+            await self.disconnect(connection_id)
+            return False
         except WebSocketDisconnect:
             logger.info(f"WebSocket {connection_id} disconnected during send")
             await self.disconnect(connection_id)

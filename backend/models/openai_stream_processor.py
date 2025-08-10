@@ -43,23 +43,23 @@ class OpenAIStreamProcessor(BaseStreamProcessor):
         # Special handling for specific models
         if model_name in ["gpt-4.1-2025-04-14", "gpt-4.1-mini-2025-04-14", "gpt-4.1-nano-2025-04-14"]:
             params["stream"] = True
-            params.setdefault("max_tokens", 10000)
+            params.setdefault("max_tokens", 20000)  # Increased from 10000
         
         if model_name == "gpt-4o-2024-05-13":
-            params.setdefault("max_tokens", 4096)
+            params.setdefault("max_tokens", 8192)  # Increased from 4096
         
         if model_name == "gpt-4o-2024-11-20":
-            params.setdefault("max_tokens", 16384)
+            params.setdefault("max_tokens", 20000)  # Increased from 16384
         
         # O1 series special handling
         if model_name == "o1-2024-12-17":
-            params["max_completion_tokens"] = 20000
+            params["max_completion_tokens"] = 30000  # Increased from 20000
             params.pop("max_tokens", None)
             params.pop("temperature", None)
             params.pop("stream", None)
         
         if model_name in ["o4-mini-2025-04-16", "o3-2025-04-16"]:
-            params["max_completion_tokens"] = 20000
+            params["max_completion_tokens"] = 30000  # Increased from 20000
             params["reasoning_effort"] = "high"
             params.pop("max_tokens", None)
             params.pop("temperature", None)

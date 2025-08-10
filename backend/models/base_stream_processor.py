@@ -34,7 +34,7 @@ class BaseStreamProcessor(ABC):
         self,
         api_key: str,
         base_url: Optional[str] = None,
-        timeout: int = 600
+        timeout: int = 1200  # Increased timeout to 20 minutes
     ):
         self.api_key = api_key
         self.base_url = base_url
@@ -199,22 +199,31 @@ class StreamBuffer:
         self.callback = callback
         self.buffer = ""
         self.last_flush = time.time()
-        self.flush_interval = 0.1  # Flush every 100ms
+        self.flush_interval = 0.5  # Increased flush interval to 500ms for better stability
+        self.min_buffer_size = 100  # Minimum buffer size before flushing
     
     async def add(self, chunk: str):
         """Add chunk to buffer and flush if needed"""
         self.buffer += chunk
         
         # Flush if buffer is large or enough time has passed
-        if len(self.buffer) > 50 or (time.time() - self.last_flush) > self.flush_interval:
+        # Increased buffer size threshold for more stable streaming
+        if len(self.buffer) > self.min_buffer_size or (time.time() - self.last_flush) > self.flush_interval:
             await self.flush()
     
     async def flush(self):
         """Flush the buffer"""
         if self.buffer:
-            await self.callback(self.buffer)
-            self.buffer = ""
-            self.last_flush = time.time()
+            try:
+                await self.callback(self.buffer)
+                self.buffer = ""
+                self.last_flush = time.time()
+            except Exception as e:
+                logger.warning(f"Failed to flush buffer: {e}")
+                # If WebSocket is closed, clear buffer anyway
+                if "close" in str(e).lower() or "Cannot call" in str(e):
+                    self.buffer = ""
+                    raise  # Re-raise to stop processing
     
     async def finalize(self):
         """Final flush of any remaining data"""

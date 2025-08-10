@@ -84,7 +84,7 @@ export const zhCN = {
     customModelId: "模型ID",
     customModelIdPlaceholder: "例如：gpt-4-vision-preview",
     customModelServiceUrl: "服务URL",
-    customModelServiceUrlPlaceholder: "https://api.example.com/v1",
+    customModelServiceUrlPlaceholder: "https://api.example.com/v1/chat/completions",
     customModelApiKey: "API密钥",
     
     // 代码生成设置

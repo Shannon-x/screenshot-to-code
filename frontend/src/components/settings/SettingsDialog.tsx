@@ -215,7 +215,7 @@ function SettingsDialog({ settings, setSettings }: Props) {
                       <Label htmlFor="custom-model-service-url">
                         <div>{t('settings.customModelServiceUrl')}</div>
                         <div className="font-light mt-1 text-xs">
-                          模型服务的完整API端点地址
+                          模型服务的完整API端点地址（例如：https://api.example.com/v1/chat/completions）
                         </div>
                       </Label>
                       <Input

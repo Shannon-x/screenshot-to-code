@@ -41,17 +41,17 @@ class ClaudeStreamProcessor(BaseStreamProcessor):
             "system": system_prompt,
             "messages": claude_messages,
             "temperature": base_config.get("temperature", 0.0),
-            "max_tokens": base_config.get("max_tokens", 8192),
+            "max_tokens": base_config.get("max_tokens", 20000),  # Increased from 8192
         }
         
         # Model-specific adjustments
         if model_name == "claude-3-7-sonnet-20250219":
-            params["max_tokens"] = 20000
+            params["max_tokens"] = 40000  # Increased from 30000  # Increased from 20000
         
         # Handle Claude 4 models with thinking
         if model_name in [Llm.CLAUDE_4_SONNET_2025_05_14.value, Llm.CLAUDE_4_OPUS_2025_05_14.value]:
-            params["thinking"] = {"type": "enabled", "budget_tokens": 10000}
-            params["max_tokens"] = 30000
+            params["thinking"] = {"type": "enabled", "budget_tokens": 20000}  # Increased thinking budget
+            params["max_tokens"] = 40000  # Increased from 30000
             params.pop("temperature", None)  # Not compatible with thinking
         else:
             # Add beta for output-128k support
